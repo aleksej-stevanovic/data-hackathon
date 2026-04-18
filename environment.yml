@@ -1,6 +1,7 @@
 name: hackathon
 channels:
   - defaults
+  - conda-forge
 dependencies:
   - aiodns=3.6.1=py314hca03da5_0
   - aiohappyeyeballs=2.6.1=py314hca03da5_1
@@ -37,7 +38,7 @@ dependencies:
   - c-ares=1.34.6=hfe05a68_0
   - ca-certificates=2026.3.19=hca03da5_0
   - cairo=1.18.4=h191e429_0
-  - certifi=2026.01.04=py314hca03da5_0
+  - certifi=2026.2.25=pyhd8ed1ab_0
   - cffi=2.0.0=py314h73c2a22_1
   - charset-normalizer=3.4.4=py314hca03da5_0
   - click=8.2.1=py314hca03da5_1
@@ -50,6 +51,7 @@ dependencies:
   - decorator=5.2.1=py314hca03da5_0
   - defusedxml=0.7.1=pyhd3eb1b0_0
   - dill=0.4.0=py314hca03da5_0
+  - duckdb=1.5.2=hfdaf410_0
   - executing=2.2.1=py314hca03da5_0
   - expat=2.7.5=h50f4ffc_0
   - filelock=3.20.3=py314hca03da5_0
@@ -161,7 +163,7 @@ dependencies:
   - notebook-shim=0.2.4=py314hca03da5_1
   - numpy=2.4.4=py314hde9b8b7_1
   - numpy-base=2.4.4=py314hb4b2851_1
-  - openssl=3.5.6=ha0b305a_0
+  - openssl=3.6.2=hd24854e_0
   - orc=2.2.0=h22efc02_2
   - packaging=26.0=py314hca03da5_0
   - pandas=3.0.2=py314heb7d0cc_0
@@ -191,6 +193,7 @@ dependencies:
   - python=3.14.4=h748c21b_100_cp314
   - python-dateutil=2.9.0post0=py314hca03da5_2
   - python-dotenv=1.2.1=py314hca03da5_0
+  - python-duckdb=1.5.2=py314h4ed92d5_0
   - python-fastjsonschema=2.21.2=py314hca03da5_0
   - python-json-logger=4.0.0=py314hca03da5_0
   - python-xxhash=3.5.0=py314h7c3a326_0
