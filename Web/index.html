@@ -146,7 +146,8 @@
       margin: 0;
     }
 
-    input[type="number"] {
+    input[type="number"],
+    input[type="text"] {
       width: 100%;
       background: var(--bg2);
       color: var(--text1);
@@ -158,13 +159,19 @@
       outline: none;
       -moz-appearance: textfield;
     }
-    input[type="number"]:focus { border-color: var(--accent); }
+    input[type="number"]:focus,
+    input[type="text"]:focus { border-color: var(--accent); }
 
     input[type="range"] {
-      width: 100%;
       accent-color: var(--accent);
       cursor: pointer;
-      margin-top: 6px;
+    }
+    input[type="range"][orient="vertical"] {
+      appearance: slider-vertical;
+      -webkit-appearance: slider-vertical;
+      width: 20px;
+      height: 160px;
+      margin: 0;
     }
 
     .input-hint {
@@ -288,64 +295,6 @@
       min-height: 14px;
     }
 
-    /* ── SUBURB LIST ─────────────────────────── */
-    .suburb-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 6px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    .suburb-item:hover { background: var(--bg2); }
-
-    .s-rank {
-      font-size: 10px;
-      color: var(--text3);
-      width: 16px;
-      text-align: right;
-      flex-shrink: 0;
-    }
-
-    .s-info { flex: 1; min-width: 0; }
-
-    .s-name {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text1);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .s-state {
-      font-size: 10px;
-      color: var(--text3);
-    }
-
-    .s-bar-wrap {
-      width: 52px;
-      height: 3px;
-      background: var(--bg3);
-      border-radius: 2px;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-    .s-bar {
-      height: 100%;
-      background: var(--accent);
-      border-radius: 2px;
-    }
-
-    .s-count {
-      font-size: 10px;
-      color: var(--text3);
-      width: 28px;
-      text-align: right;
-      flex-shrink: 0;
-    }
-
     .hint-text {
       font-size: 12px;
       color: var(--text3);
@@ -414,22 +363,45 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── MAP INFO BOX ────────────────────────── */
-    .map-info {
+    .top-right-panel {
       position: absolute;
       top: 12px;
       right: 12px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+    .top-right-panel > * {
+      pointer-events: auto;
+    }
+
+    .map-info {
       background: var(--bg1);
       border: 1px solid var(--border);
       border-radius: var(--r);
       padding: 10px 14px;
       font-size: 11px;
       color: var(--text3);
-      z-index: 1000;
       line-height: 1.7;
       pointer-events: none;
       max-width: 200px;
     }
     .map-info strong { color: var(--text1); font-size: 13px; }
+
+    .area-controls {
+      background: var(--bg1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 14px;
+      gap: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
 
     /* ── LEAFLET POPUP OVERRIDE ──────────────── */
     .leaflet-popup-content-wrapper {
@@ -487,7 +459,7 @@
     .popup-key {
       color: var(--text3);
       flex-shrink: 0;
-      width: 48px;
+      width: 80px;
     }
     .popup-val { color: var(--text2); line-height: 1.4; }
     .popup-val a {
@@ -541,16 +513,14 @@
 
         <div class="field">
           <label>Country</label>
-          <select id="country-select">
-            <option value="">All Countries</option>
-          </select>
+          <input type="text" list="country-options" id="country-input" placeholder="All Countries" autocomplete="off">
+          <datalist id="country-options"></datalist>
         </div>
 
         <div class="field">
           <label>State / Region</label>
-          <select id="state-select" disabled>
-            <option value="">All Regions</option>
-          </select>
+          <input type="text" list="state-options" id="state-input" placeholder="All Regions" autocomplete="off" disabled>
+          <datalist id="state-options"></datalist>
         </div>
 
         <div class="field">
@@ -574,41 +544,22 @@
               High Demand Hub (Volume justifies comp)
             </label>
           </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; font-size:12px; color:var(--text2);">
+            <span>Number of zones:</span>
+            <input type="number" id="zone-count" value="5" min="1" max="50" style="width:60px; padding:4px 8px; background:var(--bg2); border:1px solid var(--border); color:white; border-radius:4px; outline:none;">
+          </div>
           <button class="btn-primary" id="rec-btn" onclick="doRecommend()" style="background: #14b8a6;">
             Find Best Zones
           </button>
         </div>
 
         <div class="toggle-row">
-          <span class="toggle-label-text">Show area of selection</span>
-          <label class="switch">
-            <input type="checkbox" id="show-circle">
-            <div class="sw-track"></div>
-            <div class="sw-thumb"></div>
-          </label>
-        </div>
-
-        <div class="field">
-          <div style="display:flex; justify-content:space-between; align-items:baseline;">
-            <label>Search Area Size</label>
-            <span id="radius-val" style="font-size:12px;color:var(--text2);font-weight:600;">100%</span>
-          </div>
-          <input type="range" id="radius-slider" min="1" max="100" value="100" autocomplete="off">
-        </div>
-
-        <div class="toggle-row">
           <span class="toggle-label-text">Active businesses only</span>
           <label class="switch">
-            <input type="checkbox" id="open-only">
+            <input type="checkbox" id="open-only" checked>
             <div class="sw-track"></div>
             <div class="sw-thumb"></div>
           </label>
-        </div>
-
-        <div class="field">
-          <label>Max Results Limit</label>
-          <input type="number" id="limit-input" value="{{ default_limit }}" min="1" max="{{ max_limit }}">
-          <div class="input-hint">Default is {{ default_limit }}. Increasing this may cause map lag.</div>
         </div>
 
         <button class="btn-primary" id="search-btn" onclick="doSearch()">
@@ -616,16 +567,6 @@
         </button>
 
         <div class="result-info" id="result-info"></div>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- SUBURB RANKINGS -->
-      <div class="sec">
-        <div class="sec-title">Top Suburbs by Business Count</div>
-        <div id="suburb-list">
-          <p class="hint-text">Apply filters and search<br>to see suburb rankings</p>
-        </div>
       </div>
 
       <div class="divider"></div>
@@ -648,10 +589,29 @@
       <span id="loading-msg">Loading data...</span>
     </div>
 
-    <div class="map-info" id="map-info" style="display:none">
-      <strong id="info-count">—</strong><br>
-      businesses shown<br>
-      <span id="info-note" style="font-size:10px"></span>
+    <div class="top-right-panel">
+      <div class="map-info" id="map-info" style="display:none">
+        <strong id="info-count">—</strong><br>
+        businesses shown<br>
+        <span id="info-note" style="font-size:10px"></span>
+      </div>
+
+      <div class="area-controls">
+        <div style="font-size:11px; font-weight:600; color:var(--text1); text-transform:uppercase; letter-spacing:0.5px; text-align:center;">Target Radar</div>
+        <div class="toggle-row" style="border:none; padding:0; background:transparent; justify-content:center;">
+          <label class="switch">
+            <input type="checkbox" id="show-circle" checked>
+            <div class="sw-track"></div>
+            <div class="sw-thumb"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="area-controls" style="padding: 14px 10px;">
+        <div style="font-size:10px; color:var(--text3); text-transform:uppercase; font-weight:600; letter-spacing:0.5px; text-align:center;">Radius</div>
+        <span id="radius-val" style="font-size:13px; color:var(--accent-l); font-weight:700;">100%</span>
+        <input type="range" id="radius-slider" min="1" max="100" value="100" autocomplete="off" orient="vertical">
+      </div>
     </div>
   </div>
 
@@ -694,19 +654,29 @@ const LEGEND_ITEMS = [
 // ────────────────────────────────────────────────────────────
 // STATE
 // ────────────────────────────────────────────────────────────
-let map, clusters, searchCircle, recLayers;
+let map, clusters, searchCircle, recLayers, searchedAreaCircle;
 let selectedCategory = '';
+let countryMap = {};
+let stateMap = {};
 
 // ────────────────────────────────────────────────────────────
 // MAP INIT
 // ────────────────────────────────────────────────────────────
 function initMap() {
-  map = L.map('map', { center: [20, 0], zoom: 2, zoomControl: true });
+  const bounds = [[-90, -180], [90, 180]];
+  map = L.map('map', { 
+    center: [20, 0], 
+    zoom: 2, 
+    zoomControl: true,
+    maxBounds: bounds,
+    maxBoundsViscosity: 1.0
+  });
 
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 20,
+    noWrap: true
   }).addTo(map);
 
   clusters = L.markerClusterGroup({
@@ -714,7 +684,7 @@ function initMap() {
     showCoverageOnHover: false,
     zoomToBoundsOnClick: true,
     spiderfyOnMaxZoom: true,
-    disableClusteringAtZoom: 16,
+    disableClusteringAtZoom: 15,
     iconCreateFunction: buildClusterIcon,
   });
   map.addLayer(clusters);
@@ -727,8 +697,8 @@ function initMap() {
     color: 'var(--accent)',
     weight: 2,
     fillColor: 'var(--accent)',
-    opacity: 0,
-    fillOpacity: 0,
+    opacity: 1,
+    fillOpacity: 0.05,
     dashArray: '6, 6',
     interactive: false
   }).addTo(map);
@@ -807,12 +777,16 @@ function renderLegend() {
 async function loadCountries() {
   try {
     const data = await fetch('/api/countries').then(r => r.json());
-    const sel = document.getElementById('country-select');
-    data.forEach(({ country, count }) => {
+    const dl = document.getElementById('country-options');
+    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    data.forEach(({ country, count, lat, lng }) => {
+      let name = country;
+      try { name = regionNames.of(country); } catch(e) {}
+      countryMap[name.toLowerCase()] = { code: country, lat, lng };
       const opt = document.createElement('option');
-      opt.value = country;
-      opt.textContent = `${country} — ${count.toLocaleString()} businesses`;
-      sel.appendChild(opt);
+      opt.value = name;
+      opt.textContent = `${name} — ${count.toLocaleString()} businesses`;
+      dl.appendChild(opt);
     });
   } catch {
     // server might not be up yet; silently ignore
@@ -822,28 +796,59 @@ async function loadCountries() {
 // ────────────────────────────────────────────────────────────
 // LOAD STATES ON COUNTRY CHANGE
 // ────────────────────────────────────────────────────────────
-document.getElementById('country-select').addEventListener('change', async (e) => {
-  const country = e.target.value;
-  const stateSel = document.getElementById('state-select');
-  stateSel.innerHTML = '<option value="">All Regions</option>';
+document.getElementById('country-input').addEventListener('input', async (e) => {
+  const countryName = (e.target.value || '').trim().toLowerCase();
+  const countryData = countryMap[countryName];
+  const country = countryData ? countryData.code : null;
+  const stateInput = document.getElementById('state-input');
+  const stateDl = document.getElementById('state-options');
+
+  if (countryData && countryData.lat && countryData.lng && stateInput.dataset.lastCountry !== country) {
+    map.flyTo([countryData.lat, countryData.lng], 4, { duration: 1.2 });
+  }
   
   if (!country) {
-    stateSel.disabled = true;
+    stateInput.value = '';
+    stateInput.disabled = true;
+    stateInput.placeholder = 'All Regions';
+    stateDl.innerHTML = '';
+    delete stateInput.dataset.lastCountry;
+    stateMap = {};
     return;
   }
   
-  stateSel.disabled = true;
+  // Prevent refetching if the same valid country is already loaded
+  if (stateInput.dataset.lastCountry === country) return;
+  
+  stateInput.value = '';
+  stateDl.innerHTML = '';
+  stateInput.disabled = true;
+  stateInput.placeholder = 'Loading regions...';
+  stateInput.dataset.lastCountry = country;
+  
   try {
     const data = await fetch(`/api/states?country=${country}`).then(r => r.json());
-    data.forEach(({ state, count }) => {
+    stateMap = {};
+    data.forEach(({ state, count, lat, lng }) => {
+      stateMap[state.toLowerCase()] = { lat, lng };
       const opt = document.createElement('option');
       opt.value = state;
       opt.textContent = `${state} — ${count.toLocaleString()} businesses`;
-      stateSel.appendChild(opt);
+      stateDl.appendChild(opt);
     });
-    stateSel.disabled = false;
+    stateInput.disabled = false;
+    stateInput.placeholder = 'Search Regions...';
   } catch (err) {
     console.error('Failed to load states', err);
+    stateInput.placeholder = 'Error loading regions';
+  }
+});
+
+document.getElementById('state-input').addEventListener('input', (e) => {
+  const stateName = (e.target.value || '').trim().toLowerCase();
+  const stateData = stateMap[stateName];
+  if (stateData && stateData.lat && stateData.lng) {
+    map.flyTo([stateData.lat, stateData.lng], 7, { duration: 1.2 });
   }
 });
 
@@ -851,8 +856,10 @@ document.getElementById('country-select').addEventListener('change', async (e) =
 // SEARCH
 // ────────────────────────────────────────────────────────────
 async function doSearch() {
-  const country = document.getElementById('country-select').value;
-  const state = document.getElementById('state-select').value;
+  const countryName = (document.getElementById('country-input').value || '').trim().toLowerCase();
+  const countryData = countryMap[countryName];
+  const country = countryData ? countryData.code : '';
+  const state = (document.getElementById('state-input').value || '').trim().toUpperCase();
   const openOnly = document.getElementById('open-only').checked;
   const btn = document.getElementById('search-btn');
 
@@ -862,12 +869,11 @@ async function doSearch() {
   document.getElementById('result-info').textContent = '';
   recLayers.clearLayers();
 
-  const limitVal = parseInt(document.getElementById('limit-input').value, 10) || {{ default_limit }};
+  const limitVal = {{ default_limit }};
   const locParams = new URLSearchParams({ limit: limitVal });
-  const subParams = new URLSearchParams();
-  if (country) { locParams.append('country', country); subParams.append('country', country); }
-  if (state) { locParams.append('state', state); subParams.append('state', state); }
-  if (selectedCategory) { locParams.append('category', selectedCategory); subParams.append('category', selectedCategory); }
+  if (country) { locParams.append('country', country); }
+  if (state) { locParams.append('state', state); }
+  if (selectedCategory) { locParams.append('category', selectedCategory); }
   if (openOnly) locParams.append('open_only', 'true');
 
   // Always search within the circle's bounding box
@@ -875,35 +881,28 @@ async function doSearch() {
   const minLat = b.getSouth(), maxLat = b.getNorth();
   const minLng = b.getWest(), maxLng = b.getEast();
 
+  freezeSearchArea();
+
   locParams.append('min_lat', minLat); locParams.append('max_lat', maxLat);
   locParams.append('min_lng', minLng); locParams.append('max_lng', maxLng);
 
-  subParams.append('min_lat', minLat); subParams.append('max_lat', maxLat);
-  subParams.append('min_lng', minLng); subParams.append('max_lng', maxLng);
-
   try {
     setLoading(true, 'Loading businesses...');
-    const [locRes, subRes] = await Promise.all([
-      fetch(`/api/locations?${locParams}`),
-      fetch(`/api/suburb-stats?${subParams}`),
-    ]);
+    const locRes = await fetch(`/api/locations?${locParams}`);
 
     if (!locRes.ok) throw new Error('Location fetch failed');
-    if (!subRes.ok) throw new Error('Suburb stats fetch failed');
     
     const locs = await locRes.json();
-    const subs = await subRes.json();
 
     // Exact circle filtering
-    const center = searchCircle.getLatLng();
-    const radius = searchCircle.getRadius();
+    const center = searchedAreaCircle.getLatLng();
+    const radius = searchedAreaCircle.getRadius();
     const filteredLocs = locs.filter(loc => {
       if (!loc.lat || !loc.lng) return false;
       return center.distanceTo(L.latLng(loc.lat, loc.lng)) <= radius;
     });
 
     renderMarkers(filteredLocs);
-    renderSuburbs(subs);
 
     const infoEl = document.getElementById('result-info');
     infoEl.textContent = `Showing ${filteredLocs.length.toLocaleString()} businesses`;
@@ -912,13 +911,6 @@ async function doSearch() {
     document.getElementById('info-count').textContent = filteredLocs.length.toLocaleString();
     document.getElementById('info-note').textContent =
       locs.length >= limitVal ? 'Try zooming in or filtering for more specific results' : '';
-
-    // Fly to bounds dynamically or reset
-    if (clusters.getBounds().isValid()) {
-      map.flyToBounds(clusters.getBounds(), { padding: [40, 40], duration: 1.2, maxZoom: 12 });
-    } else {
-      map.flyTo([20, 0], 2, { duration: 1 });
-    }
 
   } catch (err) {
     console.error(err);
@@ -941,16 +933,21 @@ async function doRecommend() {
   }
 
   const mode = document.querySelector('input[name="rec-mode"]:checked').value;
+  const zoneCount = parseInt(document.getElementById('zone-count').value, 10) || 5;
   const btn = document.getElementById('rec-btn');
 
   btn.disabled = true;
   btn.textContent = 'Analyzing...';
   setLoading(true, 'Running AI recommendation engine...');
+  document.getElementById('result-info').textContent = '';
 
   const b = searchCircle.getBounds();
+  freezeSearchArea();
+
   const params = new URLSearchParams({
     category: selectedCategory,
     mode: mode,
+    zones: zoneCount,
     min_lat: b.getSouth(), max_lat: b.getNorth(),
     min_lng: b.getWest(), max_lng: b.getEast()
   });
@@ -969,32 +966,89 @@ async function doRecommend() {
     const zones = await res.json();
     recLayers.clearLayers();
 
-    if (zones.length === 0) {
+    // Strictly filter zones to fit inside the exact circle, not just the square bounding box
+    const center = searchedAreaCircle.getLatLng();
+    const radius = searchedAreaCircle.getRadius();
+    const filteredZones = zones.filter(z => center.distanceTo(L.latLng(z.lat, z.lng)) <= radius);
+
+    if (filteredZones.length === 0) {
       alert("No suitable zones found in this area. Try zooming out or selecting a larger search area size.");
       return;
     }
 
     const modeStr = mode === 'low_comp' ? 'Low Competition' : (mode === 'hub' ? 'High Demand Hub' : 'Balanced');
 
-    zones.forEach((z, i) => {
-      const bounds = [[z.lat - 0.0025, z.lng - 0.0025], [z.lat + 0.0025, z.lng + 0.0025]];
-      const rect = L.rectangle(bounds, { color: '#14b8a6', weight: 3, fillColor: '#14b8a6', fillOpacity: 0.15 });
-      rect.bindPopup(`
+    filteredZones.forEach((z, i) => {
+      // Gradient color mapping: Green (Hue 130) for best, smoothly shifting to Red (Hue 0) for worst
+      const hue = Math.round(130 * (1 - (i / Math.max(1, filteredZones.length - 1))));
+      const color = `hsl(${hue}, 85%, 45%)`;
+
+      const bounds = [[z.lat - 0.005, z.lng - 0.005], [z.lat + 0.005, z.lng + 0.005]];
+      const rect = L.rectangle(bounds, { color: color, weight: 3, fillColor: color, fillOpacity: 0.15 });
+      
+      const popupHtml = `
         <div class="popup-inner">
-          <div class="popup-name">Recommended Zone #${i + 1}</div>
-          <div class="popup-cat">${modeStr} Strategy</div>
+          <div class="popup-name" style="color: ${color};">Recommended Zone #${i + 1}</div>
+          <div class="popup-cat">${z.suburb ? esc(z.suburb) + ' • ' : ''}${modeStr} Strategy</div>
           <div class="popup-divider"></div>
-          <div class="popup-row"><span class="popup-key">Activity</span><span class="popup-val">${z.activity} businesses</span></div>
-          <div class="popup-row"><span class="popup-key">Synergy</span><span class="popup-val">${z.synergy} complementary</span></div>
-          <div class="popup-row"><span class="popup-key">Competitors</span><span class="popup-val">${z.target_density} similar</span></div>
+          <div class="popup-row"><span class="popup-key">Total Area</span><span class="popup-val">${z.activity} businesses</span></div>
+          <div class="popup-row"><span class="popup-key">Synergising</span><span class="popup-val">${z.synergy} businesses</span></div>
+          <div class="popup-row"><span class="popup-key">Competitive</span><span class="popup-val">${z.target_density} businesses</span></div>
           <div class="popup-divider"></div>
-          <div class="popup-row"><span class="popup-key">Score</span><span class="popup-val"><strong>${z.score.toFixed(1)}</strong></span></div>
+          <div style="text-align:center; margin-top:6px;">
+            <a href="https://www.google.com/maps/search/?api=1&query=${z.lat},${z.lng}" target="_blank" style="color:var(--accent-l); font-size:11px; text-decoration:none; font-weight:600; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">View on Google Maps ↗</a>
+          </div>
         </div>
-      `);
+      `;
+      
+      rect.bindPopup(popupHtml);
       recLayers.addLayer(rect);
+
+      // Add a numbered badge that stays visible when zoomed out
+      const badge = L.marker([z.lat, z.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="background:${color};color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,0.4);border:1.5px solid #fff;">${i + 1}</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        })
+      });
+      badge.bindPopup(popupHtml);
+      recLayers.addLayer(badge);
     });
 
-    map.flyToBounds(recLayers.getBounds(), { padding: [40, 40], duration: 1.2, maxZoom: 14 });
+    // Fetch and display businesses of the same type specifically inside the recommended zones
+    const countryName = (document.getElementById('country-input').value || '').trim().toLowerCase();
+    const countryData = countryMap[countryName];
+    const country = countryData ? countryData.code : '';
+    const state = (document.getElementById('state-input').value || '').trim().toUpperCase();
+    const openOnly = document.getElementById('open-only').checked;
+
+    const locParams = new URLSearchParams({ limit: {{ default_limit }} });
+    if (country) locParams.append('country', country);
+    if (state) locParams.append('state', state);
+    locParams.append('category', selectedCategory);
+    if (openOnly) locParams.append('open_only', 'true');
+    locParams.append('min_lat', b.getSouth());
+    locParams.append('max_lat', b.getNorth());
+    locParams.append('min_lng', b.getWest());
+    locParams.append('max_lng', b.getEast());
+
+    const locRes = await fetch(`/api/locations?${locParams}`);
+    if (locRes.ok) {
+      const locs = await locRes.json();
+      
+      // Keep only the markers that physically fall inside our drawn 1km x 1km recommendation boxes
+      const zoneCompetitors = locs.filter(loc => {
+        if (!loc.lat || !loc.lng) return false;
+        return filteredZones.some(z => loc.lat >= z.lat - 0.005 && loc.lat <= z.lat + 0.005 && loc.lng >= z.lng - 0.005 && loc.lng <= z.lng + 0.005);
+      });
+      
+      renderMarkers(zoneCompetitors);
+      document.getElementById('map-info').style.display = 'block';
+      document.getElementById('info-count').textContent = zoneCompetitors.length.toLocaleString();
+      document.getElementById('info-note').textContent = 'competitors in zones';
+    }
   } catch (err) { alert(err.message); } 
   finally { btn.disabled = false; btn.textContent = 'Find Best Zones'; setLoading(false); }
 }
@@ -1066,36 +1120,26 @@ function renderMarkers(data) {
 }
 
 // ────────────────────────────────────────────────────────────
-// SUBURB LIST
+// FREEZE SEARCH AREA
 // ────────────────────────────────────────────────────────────
-function renderSuburbs(data) {
-  const el = document.getElementById('suburb-list');
-  if (!data || data.length === 0) {
-    el.innerHTML = '<p class="hint-text">No suburbs found for these filters</p>';
-    return;
+function freezeSearchArea() {
+  if (searchedAreaCircle) {
+    searchedAreaCircle.remove();
   }
+  searchedAreaCircle = L.circle(searchCircle.getLatLng(), {
+    radius: searchCircle.getRadius(),
+    color: 'var(--text3)', // Subtle gray border
+    weight: 1.5,
+    fillColor: 'var(--text3)',
+    fillOpacity: 0.04,
+    interactive: false
+  }).addTo(map);
 
-  const max = data[0].count;
-  el.innerHTML = '';
-  data.slice(0, 25).forEach((s, i) => {
-    const pct = Math.round((s.count / max) * 100);
-    const count = s.count > 999 ? (s.count / 1000).toFixed(1) + 'k' : s.count;
-    const div = document.createElement('div');
-    div.className = 'suburb-item';
-    div.title = `${s.suburb}, ${s.state} — ${s.count.toLocaleString()} businesses`;
-    div.innerHTML = `
-      <span class="s-rank">${i + 1}</span>
-      <div class="s-info">
-        <div class="s-name">${esc(s.suburb)}</div>
-        <div class="s-state">${esc(s.state || '')}</div>
-      </div>
-      <div class="s-bar-wrap"><div class="s-bar" style="width:${pct}%"></div></div>
-      <span class="s-count">${count}</span>`;
-    if (s.lat && s.lng) {
-      div.addEventListener('click', () => map.flyTo([s.lat, s.lng], 14, { duration: 1 }));
-    }
-    el.appendChild(div);
-  });
+  const toggle = document.getElementById('show-circle');
+  if (toggle.checked) {
+    toggle.checked = false;
+    searchCircle.setStyle({ opacity: 0, fillOpacity: 0 });
+  }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1113,11 +1157,6 @@ function esc(str) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-
-// Allow Enter key on state select to trigger search
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter') doSearch();
-});
 
 // Update circle radius on slider change
 document.getElementById('radius-slider').addEventListener('input', e => {
@@ -1137,7 +1176,8 @@ document.getElementById('show-circle').addEventListener('change', e => {
 // ────────────────────────────────────────────────────────────
 document.getElementById('radius-slider').value = 100;
 document.getElementById('radius-val').textContent = '100%';
-document.getElementById('show-circle').checked = false;
+document.getElementById('show-circle').checked = true;
+document.getElementById('open-only').checked = true;
 initMap();
 renderChips();
 renderLegend();
