@@ -558,6 +558,27 @@
           <div class="chips" id="category-chips"></div>
         </div>
 
+        <div class="sec" style="background: rgba(20, 184, 166, 0.05); padding: 12px; border-radius: var(--r); border: 1px solid rgba(20, 184, 166, 0.3); margin-top: 5px;">
+          <div class="sec-title" style="color: #14b8a6; margin-bottom: 8px;">Smart Recommendations</div>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:var(--text2);">
+              <input type="radio" name="rec-mode" value="low_comp" style="accent-color:#14b8a6; width:14px; height:14px; margin:0;">
+              Low Competition (Underserved pockets)
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:var(--text2);">
+              <input type="radio" name="rec-mode" value="balanced" checked style="accent-color:#14b8a6; width:14px; height:14px; margin:0;">
+              Balanced (Best all-around)
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:var(--text2);">
+              <input type="radio" name="rec-mode" value="hub" style="accent-color:#14b8a6; width:14px; height:14px; margin:0;">
+              High Demand Hub (Volume justifies comp)
+            </label>
+          </div>
+          <button class="btn-primary" id="rec-btn" onclick="doRecommend()" style="background: #14b8a6;">
+            Find Best Zones
+          </button>
+        </div>
+
         <div class="toggle-row">
           <span class="toggle-label-text">Show area of selection</span>
           <label class="switch">
@@ -673,7 +694,7 @@ const LEGEND_ITEMS = [
 // ────────────────────────────────────────────────────────────
 // STATE
 // ────────────────────────────────────────────────────────────
-let map, clusters, searchCircle;
+let map, clusters, searchCircle, recLayers;
 let selectedCategory = '';
 
 // ────────────────────────────────────────────────────────────
@@ -697,6 +718,8 @@ function initMap() {
     iconCreateFunction: buildClusterIcon,
   });
   map.addLayer(clusters);
+  
+  recLayers = L.featureGroup().addTo(map);
 
   // Add targeting circle
   searchCircle = L.circle(map.getCenter(), {
@@ -837,6 +860,7 @@ async function doSearch() {
   btn.textContent = 'Searching...';
   setLoading(true, 'Fetching locations...');
   document.getElementById('result-info').textContent = '';
+  recLayers.clearLayers();
 
   const limitVal = parseInt(document.getElementById('limit-input').value, 10) || {{ default_limit }};
   const locParams = new URLSearchParams({ limit: limitVal });
@@ -865,7 +889,8 @@ async function doSearch() {
     ]);
 
     if (!locRes.ok) throw new Error('Location fetch failed');
-
+    if (!subRes.ok) throw new Error('Suburb stats fetch failed');
+    
     const locs = await locRes.json();
     const subs = await subRes.json();
 
@@ -904,6 +929,74 @@ async function doSearch() {
     btn.textContent = 'Search Locations';
     setLoading(false);
   }
+}
+
+// ────────────────────────────────────────────────────────────
+// RECOMMENDATION ENGINE
+// ────────────────────────────────────────────────────────────
+async function doRecommend() {
+  if (!selectedCategory) {
+    alert("Please select a specific Business Ecosystem category (e.g., Cafe, Retail) to get smart recommendations!");
+    return;
+  }
+
+  const mode = document.querySelector('input[name="rec-mode"]:checked').value;
+  const btn = document.getElementById('rec-btn');
+
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+  setLoading(true, 'Running AI recommendation engine...');
+
+  const b = searchCircle.getBounds();
+  const params = new URLSearchParams({
+    category: selectedCategory,
+    mode: mode,
+    min_lat: b.getSouth(), max_lat: b.getNorth(),
+    min_lng: b.getWest(), max_lng: b.getEast()
+  });
+
+  try {
+    const res = await fetch(`/api/recommend?${params}`);
+    if (!res.ok) {
+      let errMsg = 'Recommendation failed';
+      try { 
+        const data = await res.json();
+        if (data.error) errMsg = data.error;
+      } catch(e) {} // Fallback if server returns an HTML crash page
+      throw new Error(errMsg);
+    }
+    
+    const zones = await res.json();
+    recLayers.clearLayers();
+
+    if (zones.length === 0) {
+      alert("No suitable zones found in this area. Try zooming out or selecting a larger search area size.");
+      return;
+    }
+
+    const modeStr = mode === 'low_comp' ? 'Low Competition' : (mode === 'hub' ? 'High Demand Hub' : 'Balanced');
+
+    zones.forEach((z, i) => {
+      const bounds = [[z.lat - 0.0025, z.lng - 0.0025], [z.lat + 0.0025, z.lng + 0.0025]];
+      const rect = L.rectangle(bounds, { color: '#14b8a6', weight: 3, fillColor: '#14b8a6', fillOpacity: 0.15 });
+      rect.bindPopup(`
+        <div class="popup-inner">
+          <div class="popup-name">Recommended Zone #${i + 1}</div>
+          <div class="popup-cat">${modeStr} Strategy</div>
+          <div class="popup-divider"></div>
+          <div class="popup-row"><span class="popup-key">Activity</span><span class="popup-val">${z.activity} businesses</span></div>
+          <div class="popup-row"><span class="popup-key">Synergy</span><span class="popup-val">${z.synergy} complementary</span></div>
+          <div class="popup-row"><span class="popup-key">Competitors</span><span class="popup-val">${z.target_density} similar</span></div>
+          <div class="popup-divider"></div>
+          <div class="popup-row"><span class="popup-key">Score</span><span class="popup-val"><strong>${z.score.toFixed(1)}</strong></span></div>
+        </div>
+      `);
+      recLayers.addLayer(rect);
+    });
+
+    map.flyToBounds(recLayers.getBounds(), { padding: [40, 40], duration: 1.2, maxZoom: 14 });
+  } catch (err) { alert(err.message); } 
+  finally { btn.disabled = false; btn.textContent = 'Find Best Zones'; setLoading(false); }
 }
 
 // ────────────────────────────────────────────────────────────
