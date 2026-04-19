@@ -4,15 +4,16 @@ import os
 import re
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app = Flask(__name__, template_folder=BASE_DIR)
+# Point template folder up one level to "Web" where index.html lives
+app = Flask(__name__, template_folder=os.path.join(BASE_DIR, '..'))
 
-PARQUET = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'all_foursquare_locations.parquet'))
+# Use local global parquet file (navigating up two levels from Web/api/)
+PARQUET = os.path.abspath(os.path.join(BASE_DIR, '..', '..', 'all_foursquare_locations.parquet'))
 SAFE_PATTERN = re.compile(r'^[\w\s&,\-]+$')
 
 # Global Configuration for Result Limits
-# Change these numbers here, and both the API and frontend will automatically update!
 DEFAULT_LIMIT = 800
-MAX_LIMIT = 10000000000000
+MAX_LIMIT = 5000
 
 
 def run_query(sql, params=None):
@@ -56,13 +57,13 @@ def states():
         return jsonify([])
 
     rows = run_query(f"""
-        SELECT region, COUNT(*) AS cnt
+        SELECT UPPER(region) AS reg, COUNT(*) AS cnt
         FROM '{PARQUET}'
         WHERE region IS NOT NULL
           AND UPPER(country) = ?
           AND latitude IS NOT NULL
           AND longitude IS NOT NULL
-        GROUP BY region
+        GROUP BY UPPER(region)
         ORDER BY cnt DESC
     """, [country])
     return jsonify([{'state': r[0], 'count': r[1]} for r in rows])
@@ -134,6 +135,11 @@ def suburb_stats():
     state = request.args.get('state', '').strip().upper()
     category = request.args.get('category', '').strip()
 
+    min_lat = request.args.get('min_lat', type=float)
+    max_lat = request.args.get('max_lat', type=float)
+    min_lng = request.args.get('min_lng', type=float)
+    max_lng = request.args.get('max_lng', type=float)
+
     if category and not SAFE_PATTERN.match(category):
         return jsonify({'error': 'Invalid category'}), 400
 
@@ -148,6 +154,14 @@ def suburb_stats():
     if category:
         conds.append("array_to_string(fsq_category_labels, '|') ILIKE ?")
         params.append(f'%{category}%')
+    if min_lat is not None:
+        conds.append('latitude >= ?'); params.append(min_lat)
+    if max_lat is not None:
+        conds.append('latitude <= ?'); params.append(max_lat)
+    if min_lng is not None:
+        conds.append('longitude >= ?'); params.append(min_lng)
+    if max_lng is not None:
+        conds.append('longitude <= ?'); params.append(max_lng)
 
     where = ' AND '.join(conds)
 
