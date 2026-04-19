@@ -1,19 +1,14 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, send_from_directory
 import duckdb
 import os
 import re
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app = Flask(__name__, template_folder=BASE_DIR)
+app = Flask(__name__)
 
-PARQUET = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'au_locations.parquet'))
+PARQUET = "https://github.com/aleksej-stevanovic/data-hackathon/releases/download/v1.0/au_locations.parquet"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VALID_STATES = {'ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'}
 SAFE_PATTERN = re.compile(r'^[\w\s&,\-]+$')
-
-# Global Configuration for Result Limits
-# Change these numbers here, and both the API and frontend will automatically update!
-DEFAULT_LIMIT = 800
-MAX_LIMIT = 10000000000000
 
 
 def run_query(sql, params=None):
@@ -28,11 +23,6 @@ def run_query(sql, params=None):
 def add_cors(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
     return response
-
-
-@app.route('/')
-def index():
-    return render_template('index.html', default_limit=DEFAULT_LIMIT, max_limit=MAX_LIMIT)
 
 
 @app.route('/api/states')
@@ -54,7 +44,7 @@ def locations():
     state = request.args.get('state', '').strip().upper()
     category = request.args.get('category', '').strip()
     open_only = request.args.get('open_only', 'false') == 'true'
-    limit = min(request.args.get('limit', DEFAULT_LIMIT, type=int), MAX_LIMIT)
+    limit = min(request.args.get('limit', 800, type=int), 2000)
 
     min_lat = request.args.get('min_lat', type=float)
     max_lat = request.args.get('max_lat', type=float)
