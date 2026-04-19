@@ -253,7 +253,7 @@ def recommend():
                 COUNT(*) AS activity,
                 SUM(CASE WHEN {syn_conds} THEN 1 ELSE 0 END) AS synergy,
                 SUM(CASE WHEN {target_cond} THEN 1 ELSE 0 END) AS target_density,
-                MAX(locality) AS suburb
+                MODE(locality) AS suburb
             FROM '{PARQUET}'
             WHERE {where}
             GROUP BY 1, 2
@@ -318,7 +318,7 @@ def ml_recommend():
                 COUNT(*) AS activity,
                 SUM(CASE WHEN {syn_conds} THEN 1 ELSE 0 END) AS synergy,
                 SUM(CASE WHEN {target_cond} THEN 1 ELSE 0 END) AS target_density,
-                MAX(locality) AS suburb
+                MODE(locality) AS suburb
             FROM '{PARQUET}'
             WHERE {where}
             GROUP BY 1, 2
