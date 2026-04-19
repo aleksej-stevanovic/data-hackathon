@@ -1,32 +1,917 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Map Placeholder</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f4f4f9;
-        }
-        .container {
-            text-align: center;
-            padding: 2rem;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StartupSpot AU — Find Your Perfect Location</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-w: 360px;
+      --header-h: 56px;
+      --bg0: #0f172a;
+      --bg1: #1e293b;
+      --bg2: #273548;
+      --bg3: #334155;
+      --bg4: #475569;
+      --text1: #f1f5f9;
+      --text2: #cbd5e1;
+      --text3: #94a3b8;
+      --accent: #6366f1;
+      --accent-h: #4f46e5;
+      --accent-l: #818cf8;
+      --border: #2d3f57;
+      --r: 8px;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg0);
+      color: var(--text1);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── HEADER ─────────────────────────────── */
+    header {
+      height: var(--header-h);
+      background: var(--bg0);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 14px;
+      flex-shrink: 0;
+      z-index: 1100;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      white-space: nowrap;
+    }
+    .logo em { color: var(--accent-l); font-style: normal; }
+
+    .tagline {
+      font-size: 12px;
+      color: var(--text3);
+      border-left: 1px solid var(--border);
+      padding-left: 14px;
+    }
+
+    .header-pill {
+      margin-left: auto;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 11px;
+      color: var(--text3);
+      white-space: nowrap;
+    }
+
+    /* ── MAIN LAYOUT ─────────────────────────── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── SIDEBAR ─────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--bg1);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-inner {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .sidebar-inner::-webkit-scrollbar { width: 3px; }
+    .sidebar-inner::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-inner::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+    /* ── SECTIONS ────────────────────────────── */
+    .sec { display: flex; flex-direction: column; gap: 10px; }
+
+    .sec-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text3);
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ── FORM ────────────────────────────────── */
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text3);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    select {
+      width: 100%;
+      background: var(--bg2);
+      color: var(--text1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 9px 34px 9px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2394a3b8' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      transition: border-color 0.15s;
+    }
+    select:focus { border-color: var(--accent); }
+
+    /* ── CHIPS ───────────────────────────────── */
+    .chips {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+
+    .chip {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.12s;
+      user-select: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chip:hover { border-color: var(--accent-l); color: var(--accent-l); }
+    .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── TOGGLE ──────────────────────────────── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 10px 12px;
+    }
+
+    .toggle-label-text {
+      font-size: 13px;
+      color: var(--text2);
+    }
+
+    .switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .sw-track {
+      position: absolute;
+      inset: 0;
+      background: var(--bg3);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .sw-thumb {
+      position: absolute;
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      pointer-events: none;
+      transition: transform 0.2s;
+    }
+    .switch input:checked + .sw-track { background: var(--accent); }
+    .switch input:checked ~ .sw-thumb { transform: translateX(16px); }
+
+    /* ── SEARCH BTN ──────────────────────────── */
+    .btn-primary {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--r);
+      padding: 11px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .result-info {
+      font-size: 11px;
+      color: var(--text3);
+      text-align: center;
+      min-height: 14px;
+    }
+
+    /* ── SUBURB LIST ─────────────────────────── */
+    .suburb-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .suburb-item:hover { background: var(--bg2); }
+
+    .s-rank {
+      font-size: 10px;
+      color: var(--text3);
+      width: 16px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .s-info { flex: 1; min-width: 0; }
+
+    .s-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .s-state {
+      font-size: 10px;
+      color: var(--text3);
+    }
+
+    .s-bar-wrap {
+      width: 52px;
+      height: 3px;
+      background: var(--bg3);
+      border-radius: 2px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .s-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .s-count {
+      font-size: 10px;
+      color: var(--text3);
+      width: 28px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .hint-text {
+      font-size: 12px;
+      color: var(--text3);
+      text-align: center;
+      padding: 12px 0;
+      line-height: 1.5;
+    }
+
+    /* ── CATEGORY LEGEND ─────────────────────── */
+    .legend {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      color: var(--text3);
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── MAP WRAPPER ─────────────────────────── */
+    .map-wrap {
+      flex: 1;
+      position: relative;
+      min-width: 0;
+    }
+
+    #map { height: 100%; width: 100%; }
+
+    /* ── LOADING TOAST ───────────────────────── */
+    .loading-toast {
+      position: absolute;
+      bottom: 28px;
+      left: 16px;
+      background: var(--bg1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 8px 14px;
+      font-size: 12px;
+      color: var(--text2);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .loading-toast.show { display: flex; }
+
+    .spinner {
+      width: 13px;
+      height: 13px;
+      border: 2px solid var(--bg3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── MAP INFO BOX ────────────────────────── */
+    .map-info {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--bg1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 10px 14px;
+      font-size: 11px;
+      color: var(--text3);
+      z-index: 1000;
+      line-height: 1.7;
+      pointer-events: none;
+      max-width: 200px;
+    }
+    .map-info strong { color: var(--text1); font-size: 13px; }
+
+    /* ── LEAFLET POPUP OVERRIDE ──────────────── */
+    .leaflet-popup-content-wrapper {
+      background: #1a2744 !important;
+      color: var(--text1) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--r) !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+      padding: 0 !important;
+    }
+    .leaflet-popup-tip-container { display: none; }
+    .leaflet-popup-content {
+      margin: 0 !important;
+      min-width: 230px !important;
+      max-width: 280px !important;
+    }
+    .leaflet-popup-close-button {
+      color: var(--text3) !important;
+      top: 8px !important;
+      right: 8px !important;
+      font-size: 18px !important;
+    }
+
+    .popup-inner { padding: 14px 16px; }
+
+    .popup-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text1);
+      margin-bottom: 2px;
+      line-height: 1.3;
+      padding-right: 16px;
+    }
+
+    .popup-cat {
+      font-size: 10px;
+      color: var(--accent-l);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+
+    .popup-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 8px 0;
+    }
+
+    .popup-row {
+      display: flex;
+      gap: 6px;
+      font-size: 11px;
+      margin-bottom: 5px;
+      align-items: baseline;
+    }
+    .popup-key {
+      color: var(--text3);
+      flex-shrink: 0;
+      width: 48px;
+    }
+    .popup-val { color: var(--text2); line-height: 1.4; }
+    .popup-val a {
+      color: var(--accent-l);
+      text-decoration: none;
+      max-width: 170px;
+      display: inline-block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: bottom;
+    }
+    .popup-val a:hover { text-decoration: underline; }
+
+    .popup-status {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-top: 8px;
+    }
+    .popup-status.open { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .popup-status.closed { background: rgba(239,68,68,0.12); color: #f87171; }
+
+    /* ── MARKER DOT ──────────────────────────── */
+    .m-dot {
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.55);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Server is Live! 🚀</h1>
-        <p>Waiting for the map and data to be added...</p>
+
+<header>
+  <div class="logo">Startup<em>Spot</em> AU</div>
+  <div class="tagline">Find your perfect startup location in Australia</div>
+  <div class="header-pill" id="header-pill">1.5M+ businesses</div>
+</header>
+
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-inner">
+
+      <!-- FILTERS -->
+      <div class="sec">
+        <div class="sec-title">Filters</div>
+
+        <div class="field">
+          <label>State / Territory</label>
+          <select id="state-select">
+            <option value="">All Australia</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Business Ecosystem Nearby</label>
+          <div class="chips" id="category-chips"></div>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-label-text">Active businesses only</span>
+          <label class="switch">
+            <input type="checkbox" id="open-only">
+            <div class="sw-track"></div>
+            <div class="sw-thumb"></div>
+          </label>
+        </div>
+
+        <button class="btn-primary" id="search-btn" onclick="doSearch()">
+          Search Locations
+        </button>
+
+        <div class="result-info" id="result-info"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- SUBURB RANKINGS -->
+      <div class="sec">
+        <div class="sec-title">Top Suburbs by Business Count</div>
+        <div id="suburb-list">
+          <p class="hint-text">Apply filters and search<br>to see suburb rankings</p>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- COLOR LEGEND -->
+      <div class="sec">
+        <div class="sec-title">Map Legend</div>
+        <div class="legend" id="legend"></div>
+      </div>
+
     </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="map-wrap">
+    <div id="map"></div>
+
+    <div class="loading-toast" id="loading-toast">
+      <div class="spinner"></div>
+      <span id="loading-msg">Loading data...</span>
+    </div>
+
+    <div class="map-info" id="map-info" style="display:none">
+      <strong id="info-count">—</strong><br>
+      businesses shown<br>
+      <span id="info-note" style="font-size:10px"></span>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+// ────────────────────────────────────────────────────────────
+// CONSTANTS
+// ────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  { label: 'All Types',     value: '' },
+  { label: 'Offices',       value: 'Office' },
+  { label: 'Coworking',     value: 'Coworking' },
+  { label: 'Cafes',         value: 'Cafe' },
+  { label: 'Dining',        value: 'Dining and Drinking' },
+  { label: 'Transport',     value: 'Travel and Transportation' },
+  { label: 'Education',     value: 'Education' },
+  { label: 'Finance',       value: 'Financial' },
+  { label: 'Health',        value: 'Health and Medical' },
+  { label: 'Retail',        value: 'Retail' },
+  { label: 'Entertainment', value: 'Arts and Entertainment' },
+  { label: 'Tech',          value: 'Technology' },
+];
+
+const LEGEND_ITEMS = [
+  { label: 'Dining & Cafes',   color: '#f97316', keys: ['dining', 'cafe', 'restaurant', 'bar'] },
+  { label: 'Offices & Work',   color: '#6366f1', keys: ['office', 'coworking', 'professional'] },
+  { label: 'Retail',           color: '#a855f7', keys: ['retail'] },
+  { label: 'Transport',        color: '#94a3b8', keys: ['travel', 'transportation', 'transit'] },
+  { label: 'Education',        color: '#eab308', keys: ['education', 'university', 'school'] },
+  { label: 'Health',           color: '#14b8a6', keys: ['health', 'medical', 'hospital'] },
+  { label: 'Entertainment',    color: '#ec4899', keys: ['arts', 'entertainment', 'event'] },
+  { label: 'Finance',          color: '#34d399', keys: ['financial', 'bank', 'insurance'] },
+  { label: 'Outdoors',         color: '#22c55e', keys: ['landmark', 'outdoor', 'park', 'nature'] },
+  { label: 'Other',            color: '#64748b', keys: [] },
+];
+
+const STATE_VIEWS = {
+  NSW: { c: [-33.5, 147.0], z: 7 },
+  VIC: { c: [-37.0, 144.5], z: 7 },
+  QLD: { c: [-22.0, 144.5], z: 6 },
+  WA:  { c: [-27.0, 120.0], z: 6 },
+  SA:  { c: [-30.0, 136.0], z: 6 },
+  TAS: { c: [-42.0, 146.5], z: 8 },
+  NT:  { c: [-19.5, 133.0], z: 7 },
+  ACT: { c: [-35.4, 149.0], z: 10 },
+};
+
+// ────────────────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────────────────
+let map, clusters;
+let selectedCategory = '';
+
+// ────────────────────────────────────────────────────────────
+// MAP INIT
+// ────────────────────────────────────────────────────────────
+function initMap() {
+  map = L.map('map', { center: [-27, 133], zoom: 5, zoomControl: true });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 20,
+  }).addTo(map);
+
+  clusters = L.markerClusterGroup({
+    maxClusterRadius: 55,
+    showCoverageOnHover: false,
+    zoomToBoundsOnClick: true,
+    spiderfyOnMaxZoom: true,
+    disableClusteringAtZoom: 16,
+    iconCreateFunction: buildClusterIcon,
+  });
+  map.addLayer(clusters);
+}
+
+function buildClusterIcon(cluster) {
+  const n = cluster.getChildCount();
+  const d = n > 500 ? 48 : n > 100 ? 40 : 34;
+  const label = n > 9999 ? Math.round(n / 1000) + 'k' : n.toLocaleString();
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:${d}px;height:${d}px;border-radius:50%;
+      background:rgba(99,102,241,0.88);border:2px solid rgba(255,255,255,0.8);
+      display:flex;align-items:center;justify-content:center;
+      font:700 ${d > 40 ? 12 : 10}px/1 Inter,sans-serif;color:#fff;
+      box-shadow:0 2px 10px rgba(0,0,0,0.35);">${label}</div>`,
+    iconSize: [d, d],
+    iconAnchor: [d / 2, d / 2],
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// CATEGORY CHIPS
+// ────────────────────────────────────────────────────────────
+function renderChips() {
+  const el = document.getElementById('category-chips');
+  el.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (cat.value === selectedCategory ? ' active' : '');
+    chip.textContent = cat.label;
+    chip.addEventListener('click', () => {
+      selectedCategory = cat.value;
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+    el.appendChild(chip);
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// LEGEND
+// ────────────────────────────────────────────────────────────
+function renderLegend() {
+  const el = document.getElementById('legend');
+  el.innerHTML = '';
+  LEGEND_ITEMS.forEach(({ label, color }) => {
+    el.innerHTML += `
+      <div class="legend-item">
+        <div class="legend-dot" style="background:${color}"></div>
+        <span>${label}</span>
+      </div>`;
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// LOAD STATES
+// ────────────────────────────────────────────────────────────
+async function loadStates() {
+  try {
+    const data = await fetch('/api/states').then(r => r.json());
+    const sel = document.getElementById('state-select');
+    data.forEach(({ state, count }) => {
+      const opt = document.createElement('option');
+      opt.value = state;
+      opt.textContent = `${state} — ${count.toLocaleString()} businesses`;
+      sel.appendChild(opt);
+    });
+  } catch {
+    // server might not be up yet; silently ignore
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// SEARCH
+// ────────────────────────────────────────────────────────────
+async function doSearch() {
+  const state = document.getElementById('state-select').value;
+  const openOnly = document.getElementById('open-only').checked;
+  const btn = document.getElementById('search-btn');
+
+  btn.disabled = true;
+  btn.textContent = 'Searching...';
+  setLoading(true, 'Fetching locations...');
+  document.getElementById('result-info').textContent = '';
+
+  const locParams = new URLSearchParams({ limit: 800 });
+  const subParams = new URLSearchParams();
+  if (state) { locParams.append('state', state); subParams.append('state', state); }
+  if (selectedCategory) { locParams.append('category', selectedCategory); subParams.append('category', selectedCategory); }
+  if (openOnly) locParams.append('open_only', 'true');
+
+  // Include viewport bbox when zoomed in enough
+  if (map.getZoom() >= 9) {
+    const b = map.getBounds();
+    locParams.append('min_lat', b.getSouth());
+    locParams.append('max_lat', b.getNorth());
+    locParams.append('min_lng', b.getWest());
+    locParams.append('max_lng', b.getEast());
+  }
+
+  try {
+    setLoading(true, 'Loading businesses...');
+    const [locRes, subRes] = await Promise.all([
+      fetch(`/api/locations?${locParams}`),
+      fetch(`/api/suburb-stats?${subParams}`),
+    ]);
+
+    if (!locRes.ok) throw new Error('Location fetch failed');
+
+    const locs = await locRes.json();
+    const subs = await subRes.json();
+
+    renderMarkers(locs);
+    renderSuburbs(subs);
+
+    const infoEl = document.getElementById('result-info');
+    infoEl.textContent = `Showing ${locs.length.toLocaleString()} businesses`;
+
+    document.getElementById('map-info').style.display = 'block';
+    document.getElementById('info-count').textContent = locs.length.toLocaleString();
+    document.getElementById('info-note').textContent =
+      locs.length === 800 ? 'Try zooming in or filtering for more specific results' : '';
+
+    // Fly to state or reset
+    if (state && STATE_VIEWS[state]) {
+      const v = STATE_VIEWS[state];
+      map.flyTo(v.c, v.z, { duration: 1.2 });
+    } else if (!state) {
+      map.flyTo([-27, 133], 5, { duration: 1 });
+    }
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById('result-info').textContent =
+      'Error connecting to server. Is Flask running on port 5000?';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Search Locations';
+    setLoading(false);
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// MARKERS
+// ────────────────────────────────────────────────────────────
+function getCatColor(categories) {
+  if (!categories) return '#64748b';
+  const lower = categories.toLowerCase();
+  for (const { color, keys } of LEGEND_ITEMS) {
+    if (keys.some(k => lower.includes(k))) return color;
+  }
+  return '#64748b';
+}
+
+function markerIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="m-dot" style="width:10px;height:10px;background:${color};"></div>`,
+    iconSize: [10, 10],
+    iconAnchor: [5, 5],
+  });
+}
+
+function buildPopup(loc) {
+  const cats = loc.categories
+    ? loc.categories.split(' | ').slice(0, 2).join('<br>')
+    : 'Uncategorised';
+
+  const addr = [loc.address, loc.locality, loc.region, loc.postcode]
+    .filter(Boolean).join(', ');
+
+  const status = loc.date_closed
+    ? `<span class="popup-status closed">Closed</span>`
+    : `<span class="popup-status open">Active</span>`;
+
+  let h = `<div class="popup-inner">`;
+  h += `<div class="popup-name">${esc(loc.name)}</div>`;
+  h += `<div class="popup-cat">${esc(cats)}</div>`;
+
+  if (addr) h += row('Location', esc(addr));
+  if (loc.tel) h += row('Phone', `<a href="tel:${esc(loc.tel)}">${esc(loc.tel)}</a>`);
+  if (loc.website) {
+    const short = loc.website.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    h += row('Web', `<a href="${esc(loc.website)}" target="_blank" rel="noopener">${esc(short)}</a>`);
+  }
+  if (loc.email) {
+    h += row('Email', `<a href="mailto:${esc(loc.email)}">${esc(loc.email)}</a>`);
+  }
+
+  h += status + '</div>';
+  return h;
+}
+
+function row(key, val) {
+  return `<div class="popup-row"><span class="popup-key">${key}</span><span class="popup-val">${val}</span></div>`;
+}
+
+function renderMarkers(data) {
+  clusters.clearLayers();
+  const markers = data.map(loc => {
+    if (!loc.lat || !loc.lng) return null;
+    const m = L.marker([loc.lat, loc.lng], { icon: markerIcon(getCatColor(loc.categories)) });
+    m.bindPopup(buildPopup(loc), { maxWidth: 300 });
+    return m;
+  }).filter(Boolean);
+  clusters.addLayers(markers);
+}
+
+// ────────────────────────────────────────────────────────────
+// SUBURB LIST
+// ────────────────────────────────────────────────────────────
+function renderSuburbs(data) {
+  const el = document.getElementById('suburb-list');
+  if (!data || data.length === 0) {
+    el.innerHTML = '<p class="hint-text">No suburbs found for these filters</p>';
+    return;
+  }
+
+  const max = data[0].count;
+  el.innerHTML = '';
+  data.slice(0, 25).forEach((s, i) => {
+    const pct = Math.round((s.count / max) * 100);
+    const count = s.count > 999 ? (s.count / 1000).toFixed(1) + 'k' : s.count;
+    const div = document.createElement('div');
+    div.className = 'suburb-item';
+    div.title = `${s.suburb}, ${s.state} — ${s.count.toLocaleString()} businesses`;
+    div.innerHTML = `
+      <span class="s-rank">${i + 1}</span>
+      <div class="s-info">
+        <div class="s-name">${esc(s.suburb)}</div>
+        <div class="s-state">${esc(s.state || '')}</div>
+      </div>
+      <div class="s-bar-wrap"><div class="s-bar" style="width:${pct}%"></div></div>
+      <span class="s-count">${count}</span>`;
+    if (s.lat && s.lng) {
+      div.addEventListener('click', () => map.flyTo([s.lat, s.lng], 14, { duration: 1 }));
+    }
+    el.appendChild(div);
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// UTILS
+// ────────────────────────────────────────────────────────────
+function setLoading(on, msg) {
+  const toast = document.getElementById('loading-toast');
+  toast.classList.toggle('show', on);
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+}
+
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Allow Enter key on state select to trigger search
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+
+// ────────────────────────────────────────────────────────────
+// BOOT
+// ────────────────────────────────────────────────────────────
+initMap();
+renderChips();
+renderLegend();
+loadStates();
+</script>
 </body>
 </html>
