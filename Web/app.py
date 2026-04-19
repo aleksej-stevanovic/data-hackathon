@@ -198,7 +198,7 @@ def category_breakdown():
 @app.route('/api/recommend')
 def recommend():
     category = request.args.get('category', '').strip()
-    mode = request.args.get('mode', 'balanced').strip().lower()
+    mode = request.args.get('mode', 'smart').strip().lower()
 
     min_lat = request.args.get('min_lat', type=float)
     max_lat = request.args.get('max_lat', type=float)
@@ -234,14 +234,14 @@ def recommend():
     all_params = syn_params + [target_param] + params
 
     # Mode Scoring logic
-    if mode == 'low_comp':
+    if mode == 'opportunity':
         # Strong negative competition, ratio helps find highly underserved pockets
         score_expr = "((synergy::FLOAT / activity) * 100.0) - (target_density * 20.0)"
-    elif mode == 'hub':
+    elif mode == 'competitive':
         # Light negative competition, very high demand, high synergy
         score_expr = "(activity * 1.0) + (synergy * 1.5) - (target_density * 1.0)"
     else:
-        # Balanced (default): Medium negative competition, high demand, medium-high synergy
+        # Smart (default): Medium negative competition, high demand, medium-high synergy
         score_expr = "(activity * 0.5) + (synergy * 1.2) - (target_density * 4.0)"
 
     # DuckDB CTE for splitting the map into 1km (0.01 deg) grid cells
@@ -277,7 +277,7 @@ def recommend():
 @app.route('/api/ml-recommend')
 def ml_recommend():
     category = request.args.get('category', '').strip()
-    mode = request.args.get('mode', 'balanced').strip().lower()
+    mode = request.args.get('mode', 'smart').strip().lower()
 
     min_lat = request.args.get('min_lat', type=float)
     max_lat = request.args.get('max_lat', type=float)
@@ -346,9 +346,9 @@ def ml_recommend():
     X = np.column_stack([activity, synergy, target_density, synergy_ratio, competition_ratio, log_activity])
 
     # Use heuristic formula as training labels so the GBR learns non-linear generalisations of it
-    if mode == 'low_comp':
+    if mode == 'opportunity':
         y = (synergy_ratio * 100.0) - (target_density * 20.0)
-    elif mode == 'hub':
+    elif mode == 'competitive':
         y = (activity * 1.0) + (synergy * 1.5) - (target_density * 1.0)
     else:
         y = (activity * 0.5) + (synergy * 1.2) - (target_density * 4.0)
