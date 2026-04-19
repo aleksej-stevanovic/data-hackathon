@@ -8,6 +8,7 @@ from sklearn.preprocessing import StandardScaler
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=BASE_DIR)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 PARQUET = os.path.abspath(os.path.join(BASE_DIR, '..', 'all_foursquare_locations.parquet'))
 SAFE_PATTERN = re.compile(r'^[\w\s&,\-]+$')
@@ -43,6 +44,8 @@ def run_query(sql, params=None):
 @app.after_request
 def add_cors(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
     return response
 
 
@@ -241,20 +244,21 @@ def recommend():
         # Balanced (default): Medium negative competition, high demand, medium-high synergy
         score_expr = "(activity * 0.5) + (synergy * 1.2) - (target_density * 4.0)"
 
-    # DuckDB CTE for splitting the map into 500m (0.005 deg) grid cells
+    # DuckDB CTE for splitting the map into 1km (0.01 deg) grid cells
     sql = f"""
         WITH cell_stats AS (
             SELECT 
-                FLOOR(latitude / 0.005) * 0.005 + 0.0025 AS center_lat,
-                FLOOR(longitude / 0.005) * 0.005 + 0.0025 AS center_lng,
+                FLOOR(latitude / 0.01) * 0.01 + 0.005 AS center_lat,
+                FLOOR(longitude / 0.01) * 0.01 + 0.005 AS center_lng,
                 COUNT(*) AS activity,
                 SUM(CASE WHEN {syn_conds} THEN 1 ELSE 0 END) AS synergy,
-                SUM(CASE WHEN {target_cond} THEN 1 ELSE 0 END) AS target_density
+                SUM(CASE WHEN {target_cond} THEN 1 ELSE 0 END) AS target_density,
+                MAX(locality) AS suburb
             FROM '{PARQUET}'
             WHERE {where}
             GROUP BY 1, 2
         )
-        SELECT center_lat, center_lng, activity, synergy, target_density, {score_expr} AS score
+        SELECT center_lat, center_lng, activity, synergy, target_density, {score_expr} AS score, suburb
         FROM cell_stats
         WHERE activity > 5
         ORDER BY score DESC
@@ -263,13 +267,11 @@ def recommend():
 
     rows = run_query(sql, all_params)
     
-    # Dynamically increase zones based on total business activity in the area
-    total_activity = sum(r[2] for r in rows) if rows else 0
-    # Minimum 5 zones, add 1 extra zone per 150 businesses, capped at a maximum of 15 zones
-    num_zones = max(5, min(15, int(5 + (total_activity // 150))))
+    num_zones = request.args.get('zones', 5, type=int)
+    num_zones = max(1, min(50, num_zones))
     selected_rows = rows[:num_zones]
 
-    return jsonify([{'lat': r[0], 'lng': r[1], 'activity': r[2], 'synergy': r[3], 'target_density': r[4], 'score': float(r[5] or 0)} for r in selected_rows])
+    return jsonify([{'lat': r[0], 'lng': r[1], 'activity': r[2], 'synergy': r[3], 'target_density': r[4], 'score': float(r[5] or 0), 'suburb': r[6]} for r in selected_rows])
 
 
 @app.route('/api/ml-recommend')
@@ -311,16 +313,17 @@ def ml_recommend():
     sql = f"""
         WITH cell_stats AS (
             SELECT
-                FLOOR(latitude / 0.005) * 0.005 + 0.0025 AS center_lat,
-                FLOOR(longitude / 0.005) * 0.005 + 0.0025 AS center_lng,
+                FLOOR(latitude / 0.01) * 0.01 + 0.005 AS center_lat,
+                FLOOR(longitude / 0.01) * 0.01 + 0.005 AS center_lng,
                 COUNT(*) AS activity,
                 SUM(CASE WHEN {syn_conds} THEN 1 ELSE 0 END) AS synergy,
-                SUM(CASE WHEN {target_cond} THEN 1 ELSE 0 END) AS target_density
+                SUM(CASE WHEN {target_cond} THEN 1 ELSE 0 END) AS target_density,
+                MAX(locality) AS suburb
             FROM '{PARQUET}'
             WHERE {where}
             GROUP BY 1, 2
         )
-        SELECT center_lat, center_lng, activity, synergy, target_density
+        SELECT center_lat, center_lng, activity, synergy, target_density, suburb
         FROM cell_stats
         WHERE activity > 2
         LIMIT 2000
@@ -332,6 +335,7 @@ def ml_recommend():
 
     # Engineer features: ratios and log transform capture non-linear patterns
     raw = np.array([[r[0], r[1], r[2], r[3], r[4]] for r in rows], dtype=float)
+    suburbs = [r[5] for r in rows]
     activity      = raw[:, 2]
     synergy       = raw[:, 3]
     target_density = raw[:, 4]
@@ -360,9 +364,8 @@ def ml_recommend():
     feature_names = ['activity', 'synergy', 'target_density', 'synergy_ratio', 'competition_ratio', 'log_activity']
     feature_importance = {k: round(float(v), 4) for k, v in zip(feature_names, model.feature_importances_)}
 
-    # Dynamically scale number of recommended zones
-    total_activity = np.sum(activity)
-    num_zones = max(5, min(15, int(5 + (total_activity // 150))))
+    num_zones = request.args.get('zones', 5, type=int)
+    num_zones = max(1, min(50, num_zones))
     
     top_idx = np.argsort(ml_scores)[-num_zones:][::-1]
     recommendations = [
@@ -375,6 +378,7 @@ def ml_recommend():
             'synergy_ratio': round(float(synergy_ratio[i]), 3),
             'competition_ratio': round(float(competition_ratio[i]), 3),
             'ml_score': round(float(ml_scores[i]), 4),
+            'suburb': suburbs[i] if suburbs[i] else 'Unknown Area'
         }
         for i in top_idx
     ]

@@ -163,10 +163,15 @@
     input[type="text"]:focus { border-color: var(--accent); }
 
     input[type="range"] {
-      width: 100%;
       accent-color: var(--accent);
       cursor: pointer;
-      margin-top: 6px;
+    }
+    input[type="range"][orient="vertical"] {
+      appearance: slider-vertical;
+      -webkit-appearance: slider-vertical;
+      width: 20px;
+      height: 160px;
+      margin: 0;
     }
 
     .input-hint {
@@ -358,22 +363,45 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── MAP INFO BOX ────────────────────────── */
-    .map-info {
+    .top-right-panel {
       position: absolute;
       top: 12px;
       right: 12px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+    .top-right-panel > * {
+      pointer-events: auto;
+    }
+
+    .map-info {
       background: var(--bg1);
       border: 1px solid var(--border);
       border-radius: var(--r);
       padding: 10px 14px;
       font-size: 11px;
       color: var(--text3);
-      z-index: 1000;
       line-height: 1.7;
       pointer-events: none;
       max-width: 200px;
     }
     .map-info strong { color: var(--text1); font-size: 13px; }
+
+    .area-controls {
+      background: var(--bg1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 14px;
+      gap: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
 
     /* ── LEAFLET POPUP OVERRIDE ──────────────── */
     .leaflet-popup-content-wrapper {
@@ -431,7 +459,7 @@
     .popup-key {
       color: var(--text3);
       flex-shrink: 0;
-      width: 48px;
+      width: 80px;
     }
     .popup-val { color: var(--text2); line-height: 1.4; }
     .popup-val a {
@@ -516,26 +544,13 @@
               High Demand Hub (Volume justifies comp)
             </label>
           </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; font-size:12px; color:var(--text2);">
+            <span>Number of zones:</span>
+            <input type="number" id="zone-count" value="5" min="1" max="50" style="width:60px; padding:4px 8px; background:var(--bg2); border:1px solid var(--border); color:white; border-radius:4px; outline:none;">
+          </div>
           <button class="btn-primary" id="rec-btn" onclick="doRecommend()" style="background: #14b8a6;">
             Find Best Zones
           </button>
-        </div>
-
-        <div class="toggle-row">
-          <span class="toggle-label-text">Show area of selection</span>
-          <label class="switch">
-            <input type="checkbox" id="show-circle" checked>
-            <div class="sw-track"></div>
-            <div class="sw-thumb"></div>
-          </label>
-        </div>
-
-        <div class="field">
-          <div style="display:flex; justify-content:space-between; align-items:baseline;">
-            <label>Search Area Size</label>
-            <span id="radius-val" style="font-size:12px;color:var(--text2);font-weight:600;">100%</span>
-          </div>
-          <input type="range" id="radius-slider" min="1" max="100" value="100" autocomplete="off">
         </div>
 
         <div class="toggle-row">
@@ -574,10 +589,29 @@
       <span id="loading-msg">Loading data...</span>
     </div>
 
-    <div class="map-info" id="map-info" style="display:none">
-      <strong id="info-count">—</strong><br>
-      businesses shown<br>
-      <span id="info-note" style="font-size:10px"></span>
+    <div class="top-right-panel">
+      <div class="map-info" id="map-info" style="display:none">
+        <strong id="info-count">—</strong><br>
+        businesses shown<br>
+        <span id="info-note" style="font-size:10px"></span>
+      </div>
+
+      <div class="area-controls">
+        <div style="font-size:11px; font-weight:600; color:var(--text1); text-transform:uppercase; letter-spacing:0.5px; text-align:center;">Target Radar</div>
+        <div class="toggle-row" style="border:none; padding:0; background:transparent; justify-content:center;">
+          <label class="switch">
+            <input type="checkbox" id="show-circle" checked>
+            <div class="sw-track"></div>
+            <div class="sw-thumb"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="area-controls" style="padding: 14px 10px;">
+        <div style="font-size:10px; color:var(--text3); text-transform:uppercase; font-weight:600; letter-spacing:0.5px; text-align:center;">Radius</div>
+        <span id="radius-val" style="font-size:13px; color:var(--accent-l); font-weight:700;">100%</span>
+        <input type="range" id="radius-slider" min="1" max="100" value="100" autocomplete="off" orient="vertical">
+      </div>
     </div>
   </div>
 
@@ -629,12 +663,20 @@ let stateMap = {};
 // MAP INIT
 // ────────────────────────────────────────────────────────────
 function initMap() {
-  map = L.map('map', { center: [20, 0], zoom: 2, zoomControl: true });
+  const bounds = [[-90, -180], [90, 180]];
+  map = L.map('map', { 
+    center: [20, 0], 
+    zoom: 2, 
+    zoomControl: true,
+    maxBounds: bounds,
+    maxBoundsViscosity: 1.0
+  });
 
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 20,
+    noWrap: true
   }).addTo(map);
 
   clusters = L.markerClusterGroup({
@@ -891,11 +933,13 @@ async function doRecommend() {
   }
 
   const mode = document.querySelector('input[name="rec-mode"]:checked').value;
+  const zoneCount = parseInt(document.getElementById('zone-count').value, 10) || 5;
   const btn = document.getElementById('rec-btn');
 
   btn.disabled = true;
   btn.textContent = 'Analyzing...';
   setLoading(true, 'Running AI recommendation engine...');
+  document.getElementById('result-info').textContent = '';
 
   const b = searchCircle.getBounds();
   freezeSearchArea();
@@ -903,6 +947,7 @@ async function doRecommend() {
   const params = new URLSearchParams({
     category: selectedCategory,
     mode: mode,
+    zones: zoneCount,
     min_lat: b.getSouth(), max_lat: b.getNorth(),
     min_lng: b.getWest(), max_lng: b.getEast()
   });
@@ -938,19 +983,21 @@ async function doRecommend() {
       const hue = Math.round(130 * (1 - (i / Math.max(1, filteredZones.length - 1))));
       const color = `hsl(${hue}, 85%, 45%)`;
 
-      const bounds = [[z.lat - 0.0025, z.lng - 0.0025], [z.lat + 0.0025, z.lng + 0.0025]];
+      const bounds = [[z.lat - 0.005, z.lng - 0.005], [z.lat + 0.005, z.lng + 0.005]];
       const rect = L.rectangle(bounds, { color: color, weight: 3, fillColor: color, fillOpacity: 0.15 });
       
       const popupHtml = `
         <div class="popup-inner">
           <div class="popup-name" style="color: ${color};">Recommended Zone #${i + 1}</div>
-          <div class="popup-cat">${modeStr} Strategy</div>
+          <div class="popup-cat">${z.suburb ? esc(z.suburb) + ' • ' : ''}${modeStr} Strategy</div>
           <div class="popup-divider"></div>
-          <div class="popup-row"><span class="popup-key">Activity</span><span class="popup-val">${z.activity} businesses</span></div>
-          <div class="popup-row"><span class="popup-key">Synergy</span><span class="popup-val">${z.synergy} complementary</span></div>
-          <div class="popup-row"><span class="popup-key">Competitors</span><span class="popup-val">${z.target_density} similar</span></div>
+          <div class="popup-row"><span class="popup-key">Total Area</span><span class="popup-val">${z.activity} businesses</span></div>
+          <div class="popup-row"><span class="popup-key">Synergising</span><span class="popup-val">${z.synergy} businesses</span></div>
+          <div class="popup-row"><span class="popup-key">Competitive</span><span class="popup-val">${z.target_density} businesses</span></div>
           <div class="popup-divider"></div>
-          <div class="popup-row"><span class="popup-key">Score</span><span class="popup-val"><strong>${(z.score || z.ml_score).toFixed(1)}</strong></span></div>
+          <div style="text-align:center; margin-top:6px;">
+            <a href="https://www.google.com/maps/search/?api=1&query=${z.lat},${z.lng}" target="_blank" style="color:var(--accent-l); font-size:11px; text-decoration:none; font-weight:600; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">View on Google Maps ↗</a>
+          </div>
         </div>
       `;
       
@@ -969,6 +1016,39 @@ async function doRecommend() {
       badge.bindPopup(popupHtml);
       recLayers.addLayer(badge);
     });
+
+    // Fetch and display businesses of the same type specifically inside the recommended zones
+    const countryName = (document.getElementById('country-input').value || '').trim().toLowerCase();
+    const countryData = countryMap[countryName];
+    const country = countryData ? countryData.code : '';
+    const state = (document.getElementById('state-input').value || '').trim().toUpperCase();
+    const openOnly = document.getElementById('open-only').checked;
+
+    const locParams = new URLSearchParams({ limit: {{ default_limit }} });
+    if (country) locParams.append('country', country);
+    if (state) locParams.append('state', state);
+    locParams.append('category', selectedCategory);
+    if (openOnly) locParams.append('open_only', 'true');
+    locParams.append('min_lat', b.getSouth());
+    locParams.append('max_lat', b.getNorth());
+    locParams.append('min_lng', b.getWest());
+    locParams.append('max_lng', b.getEast());
+
+    const locRes = await fetch(`/api/locations?${locParams}`);
+    if (locRes.ok) {
+      const locs = await locRes.json();
+      
+      // Keep only the markers that physically fall inside our drawn 1km x 1km recommendation boxes
+      const zoneCompetitors = locs.filter(loc => {
+        if (!loc.lat || !loc.lng) return false;
+        return filteredZones.some(z => loc.lat >= z.lat - 0.005 && loc.lat <= z.lat + 0.005 && loc.lng >= z.lng - 0.005 && loc.lng <= z.lng + 0.005);
+      });
+      
+      renderMarkers(zoneCompetitors);
+      document.getElementById('map-info').style.display = 'block';
+      document.getElementById('info-count').textContent = zoneCompetitors.length.toLocaleString();
+      document.getElementById('info-note').textContent = 'competitors in zones';
+    }
   } catch (err) { alert(err.message); } 
   finally { btn.disabled = false; btn.textContent = 'Find Best Zones'; setLoading(false); }
 }
