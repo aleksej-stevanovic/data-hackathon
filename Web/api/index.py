@@ -12,8 +12,8 @@ PARQUET = os.path.abspath(os.path.join(BASE_DIR, '..', '..', 'all_foursquare_loc
 SAFE_PATTERN = re.compile(r'^[\w\s&,\-]+$')
 
 # Global Configuration for Result Limits
-DEFAULT_LIMIT = 800
-MAX_LIMIT = 5000
+DEFAULT_LIMIT = 100000
+MAX_LIMIT = 1000000
 
 
 def run_query(sql, params=None):
