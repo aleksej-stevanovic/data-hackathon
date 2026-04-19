@@ -28,8 +28,8 @@ SYNERGY_MAP = {
 
 # Global Configuration for Result Limits
 # Change these numbers here, and both the API and frontend will automatically update!
-DEFAULT_LIMIT = 800
-MAX_LIMIT = 5000
+DEFAULT_LIMIT = 1000000
+MAX_LIMIT = 1000000
 
 
 def run_query(sql, params=None):
@@ -54,7 +54,7 @@ def index():
 @app.route('/api/countries')
 def countries():
     rows = run_query(f"""
-        SELECT country, COUNT(*) AS cnt
+        SELECT country, COUNT(*) AS cnt, AVG(latitude) AS lat, AVG(longitude) AS lng
         FROM '{PARQUET}'
         WHERE country IS NOT NULL
           AND latitude IS NOT NULL
@@ -63,7 +63,7 @@ def countries():
         ORDER BY cnt DESC
         LIMIT 250
     """)
-    return jsonify([{'country': r[0], 'count': r[1]} for r in rows])
+    return jsonify([{'country': r[0], 'count': r[1], 'lat': r[2], 'lng': r[3]} for r in rows])
 
 
 @app.route('/api/states')
@@ -73,7 +73,7 @@ def states():
         return jsonify([])
 
     rows = run_query(f"""
-        SELECT UPPER(region) AS reg, COUNT(*) AS cnt
+        SELECT UPPER(region) AS reg, COUNT(*) AS cnt, AVG(latitude) AS lat, AVG(longitude) AS lng
         FROM '{PARQUET}'
         WHERE region IS NOT NULL
           AND UPPER(country) = ?
@@ -81,8 +81,9 @@ def states():
           AND longitude IS NOT NULL
         GROUP BY UPPER(region)
         ORDER BY cnt DESC
+        LIMIT 100
     """, [country])
-    return jsonify([{'state': r[0], 'count': r[1]} for r in rows])
+    return jsonify([{'state': r[0], 'count': r[1], 'lat': r[2], 'lng': r[3]} for r in rows])
 
 
 @app.route('/api/locations')
@@ -144,56 +145,6 @@ def locations():
         for r in rows
     ])
 
-
-@app.route('/api/suburb-stats')
-def suburb_stats():
-    country = request.args.get('country', '').strip().upper()
-    state = request.args.get('state', '').strip().upper()
-    category = request.args.get('category', '').strip()
-
-    min_lat = request.args.get('min_lat', type=float)
-    max_lat = request.args.get('max_lat', type=float)
-    min_lng = request.args.get('min_lng', type=float)
-    max_lng = request.args.get('max_lng', type=float)
-
-    if category and not SAFE_PATTERN.match(category):
-        return jsonify({'error': 'Invalid category'}), 400
-
-    conds = ['latitude IS NOT NULL', 'longitude IS NOT NULL', 'locality IS NOT NULL']
-    params = []
-
-    if country:
-        conds.append('UPPER(country) = ?')
-        params.append(country)
-    if state:
-        conds.append('UPPER(region) = ?'); params.append(state)
-    if category:
-        conds.append("array_to_string(fsq_category_labels, '|') ILIKE ?")
-        params.append(f'%{category}%')
-    if min_lat is not None:
-        conds.append('latitude >= ?'); params.append(min_lat)
-    if max_lat is not None:
-        conds.append('latitude <= ?'); params.append(max_lat)
-    if min_lng is not None:
-        conds.append('longitude >= ?'); params.append(min_lng)
-    if max_lng is not None:
-        conds.append('longitude <= ?'); params.append(max_lng)
-
-    where = ' AND '.join(conds)
-
-    rows = run_query(f"""
-        SELECT locality, region, COUNT(*) AS cnt, AVG(latitude) AS lat, AVG(longitude) AS lng
-        FROM '{PARQUET}'
-        WHERE {where}
-        GROUP BY locality, region
-        ORDER BY cnt DESC
-        LIMIT 50
-    """, params)
-
-    return jsonify([
-        {'suburb': r[0], 'state': r[1], 'count': r[2], 'lat': r[3], 'lng': r[4]}
-        for r in rows
-    ])
 
 
 @app.route('/api/category-breakdown')
@@ -307,11 +258,18 @@ def recommend():
         FROM cell_stats
         WHERE activity > 5
         ORDER BY score DESC
-        LIMIT 5
+        LIMIT 50
     """
 
     rows = run_query(sql, all_params)
-    return jsonify([{'lat': r[0], 'lng': r[1], 'activity': r[2], 'synergy': r[3], 'target_density': r[4], 'score': float(r[5] or 0)} for r in rows])
+    
+    # Dynamically increase zones based on total business activity in the area
+    total_activity = sum(r[2] for r in rows) if rows else 0
+    # Minimum 5 zones, add 1 extra zone per 150 businesses, capped at a maximum of 15 zones
+    num_zones = max(5, min(15, int(5 + (total_activity // 150))))
+    selected_rows = rows[:num_zones]
+
+    return jsonify([{'lat': r[0], 'lng': r[1], 'activity': r[2], 'synergy': r[3], 'target_density': r[4], 'score': float(r[5] or 0)} for r in selected_rows])
 
 
 @app.route('/api/ml-recommend')
@@ -402,7 +360,11 @@ def ml_recommend():
     feature_names = ['activity', 'synergy', 'target_density', 'synergy_ratio', 'competition_ratio', 'log_activity']
     feature_importance = {k: round(float(v), 4) for k, v in zip(feature_names, model.feature_importances_)}
 
-    top_idx = np.argsort(ml_scores)[-5:][::-1]
+    # Dynamically scale number of recommended zones
+    total_activity = np.sum(activity)
+    num_zones = max(5, min(15, int(5 + (total_activity // 150))))
+    
+    top_idx = np.argsort(ml_scores)[-num_zones:][::-1]
     recommendations = [
         {
             'lat': float(raw[i, 0]),
