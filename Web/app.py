@@ -6,8 +6,7 @@ import re
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=BASE_DIR)
 
-PARQUET = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'au_locations.parquet'))
-VALID_STATES = {'ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'}
+PARQUET = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'all_foursquare_locations.parquet'))
 SAFE_PATTERN = re.compile(r'^[\w\s&,\-]+$')
 
 # Global Configuration for Result Limits
@@ -35,22 +34,43 @@ def index():
     return render_template('index.html', default_limit=DEFAULT_LIMIT, max_limit=MAX_LIMIT)
 
 
+@app.route('/api/countries')
+def countries():
+    rows = run_query(f"""
+        SELECT country, COUNT(*) AS cnt
+        FROM '{PARQUET}'
+        WHERE country IS NOT NULL
+          AND latitude IS NOT NULL
+          AND longitude IS NOT NULL
+        GROUP BY country
+        ORDER BY cnt DESC
+        LIMIT 250
+    """)
+    return jsonify([{'country': r[0], 'count': r[1]} for r in rows])
+
+
 @app.route('/api/states')
 def states():
+    country = request.args.get('country', '').strip().upper()
+    if not country:
+        return jsonify([])
+
     rows = run_query(f"""
         SELECT region, COUNT(*) AS cnt
         FROM '{PARQUET}'
         WHERE region IS NOT NULL
+          AND UPPER(country) = ?
           AND latitude IS NOT NULL
           AND longitude IS NOT NULL
         GROUP BY region
         ORDER BY cnt DESC
-    """)
+    """, [country])
     return jsonify([{'state': r[0], 'count': r[1]} for r in rows])
 
 
 @app.route('/api/locations')
 def locations():
+    country = request.args.get('country', '').strip().upper()
     state = request.args.get('state', '').strip().upper()
     category = request.args.get('category', '').strip()
     open_only = request.args.get('open_only', 'false') == 'true'
@@ -61,14 +81,15 @@ def locations():
     min_lng = request.args.get('min_lng', type=float)
     max_lng = request.args.get('max_lng', type=float)
 
-    if state and state not in VALID_STATES:
-        return jsonify({'error': 'Invalid state'}), 400
     if category and not SAFE_PATTERN.match(category):
         return jsonify({'error': 'Invalid category'}), 400
 
     conds = ['latitude IS NOT NULL', 'longitude IS NOT NULL', 'name IS NOT NULL']
     params = []
 
+    if country:
+        conds.append('UPPER(country) = ?')
+        params.append(country)
     if state:
         conds.append('UPPER(region) = ?')
         params.append(state)
@@ -109,17 +130,19 @@ def locations():
 
 @app.route('/api/suburb-stats')
 def suburb_stats():
+    country = request.args.get('country', '').strip().upper()
     state = request.args.get('state', '').strip().upper()
     category = request.args.get('category', '').strip()
 
-    if state and state not in VALID_STATES:
-        return jsonify({'error': 'Invalid state'}), 400
     if category and not SAFE_PATTERN.match(category):
         return jsonify({'error': 'Invalid category'}), 400
 
     conds = ['latitude IS NOT NULL', 'longitude IS NOT NULL', 'locality IS NOT NULL']
     params = []
 
+    if country:
+        conds.append('UPPER(country) = ?')
+        params.append(country)
     if state:
         conds.append('UPPER(region) = ?'); params.append(state)
     if category:
@@ -145,18 +168,19 @@ def suburb_stats():
 
 @app.route('/api/category-breakdown')
 def category_breakdown():
+    country = request.args.get('country', '').strip().upper()
     state = request.args.get('state', '').strip().upper()
     min_lat = request.args.get('min_lat', type=float)
     max_lat = request.args.get('max_lat', type=float)
     min_lng = request.args.get('min_lng', type=float)
     max_lng = request.args.get('max_lng', type=float)
 
-    if state and state not in VALID_STATES:
-        return jsonify({'error': 'Invalid state'}), 400
-
     conds = ['latitude IS NOT NULL', 'longitude IS NOT NULL', 'fsq_category_labels IS NOT NULL']
     params = []
 
+    if country:
+        conds.append('UPPER(country) = ?')
+        params.append(country)
     if state:
         conds.append('UPPER(region) = ?'); params.append(state)
     if min_lat is not None:

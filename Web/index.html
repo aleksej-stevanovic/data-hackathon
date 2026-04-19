@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StartupSpot AU — Find Your Perfect Location</title>
+  <title>StartupSpot Global — Find Your Perfect Location</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
@@ -517,8 +517,8 @@
 <body>
 
 <header>
-  <div class="logo">Startup<em>Spot</em> AU</div>
-  <div class="tagline">Find your perfect startup location in Australia</div>
+  <div class="logo">Startup<em>Spot</em> Global</div>
+  <div class="tagline">Find your perfect startup location worldwide</div>
   <div class="header-pill" id="header-pill">1.5M+ businesses</div>
 </header>
 
@@ -533,9 +533,16 @@
         <div class="sec-title">Filters</div>
 
         <div class="field">
-          <label>State / Territory</label>
-          <select id="state-select">
-            <option value="">All Australia</option>
+          <label>Country</label>
+          <select id="country-select">
+            <option value="">All Countries</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>State / Region</label>
+          <select id="state-select" disabled>
+            <option value="">All Regions</option>
           </select>
         </div>
 
@@ -639,17 +646,6 @@ const LEGEND_ITEMS = [
   { label: 'Other',            color: '#64748b', keys: [] },
 ];
 
-const STATE_VIEWS = {
-  NSW: { c: [-33.5, 147.0], z: 7 },
-  VIC: { c: [-37.0, 144.5], z: 7 },
-  QLD: { c: [-22.0, 144.5], z: 6 },
-  WA:  { c: [-27.0, 120.0], z: 6 },
-  SA:  { c: [-30.0, 136.0], z: 6 },
-  TAS: { c: [-42.0, 146.5], z: 8 },
-  NT:  { c: [-19.5, 133.0], z: 7 },
-  ACT: { c: [-35.4, 149.0], z: 10 },
-};
-
 // ────────────────────────────────────────────────────────────
 // STATE
 // ────────────────────────────────────────────────────────────
@@ -660,7 +656,7 @@ let selectedCategory = '';
 // MAP INIT
 // ────────────────────────────────────────────────────────────
 function initMap() {
-  map = L.map('map', { center: [-27, 133], zoom: 5, zoomControl: true });
+  map = L.map('map', { center: [20, 0], zoom: 2, zoomControl: true });
 
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -731,16 +727,16 @@ function renderLegend() {
 }
 
 // ────────────────────────────────────────────────────────────
-// LOAD STATES
+// LOAD COUNTRIES
 // ────────────────────────────────────────────────────────────
-async function loadStates() {
+async function loadCountries() {
   try {
-    const data = await fetch('/api/states').then(r => r.json());
-    const sel = document.getElementById('state-select');
-    data.forEach(({ state, count }) => {
+    const data = await fetch('/api/countries').then(r => r.json());
+    const sel = document.getElementById('country-select');
+    data.forEach(({ country, count }) => {
       const opt = document.createElement('option');
-      opt.value = state;
-      opt.textContent = `${state} — ${count.toLocaleString()} businesses`;
+      opt.value = country;
+      opt.textContent = `${country} — ${count.toLocaleString()} businesses`;
       sel.appendChild(opt);
     });
   } catch {
@@ -749,9 +745,38 @@ async function loadStates() {
 }
 
 // ────────────────────────────────────────────────────────────
+// LOAD STATES ON COUNTRY CHANGE
+// ────────────────────────────────────────────────────────────
+document.getElementById('country-select').addEventListener('change', async (e) => {
+  const country = e.target.value;
+  const stateSel = document.getElementById('state-select');
+  stateSel.innerHTML = '<option value="">All Regions</option>';
+  
+  if (!country) {
+    stateSel.disabled = true;
+    return;
+  }
+  
+  stateSel.disabled = true;
+  try {
+    const data = await fetch(`/api/states?country=${country}`).then(r => r.json());
+    data.forEach(({ state, count }) => {
+      const opt = document.createElement('option');
+      opt.value = state;
+      opt.textContent = `${state} — ${count.toLocaleString()} businesses`;
+      stateSel.appendChild(opt);
+    });
+    stateSel.disabled = false;
+  } catch (err) {
+    console.error('Failed to load states', err);
+  }
+});
+
+// ────────────────────────────────────────────────────────────
 // SEARCH
 // ────────────────────────────────────────────────────────────
 async function doSearch() {
+  const country = document.getElementById('country-select').value;
   const state = document.getElementById('state-select').value;
   const openOnly = document.getElementById('open-only').checked;
   const btn = document.getElementById('search-btn');
@@ -764,6 +789,7 @@ async function doSearch() {
   const limitVal = parseInt(document.getElementById('limit-input').value, 10) || {{ default_limit }};
   const locParams = new URLSearchParams({ limit: limitVal });
   const subParams = new URLSearchParams();
+  if (country) { locParams.append('country', country); subParams.append('country', country); }
   if (state) { locParams.append('state', state); subParams.append('state', state); }
   if (selectedCategory) { locParams.append('category', selectedCategory); subParams.append('category', selectedCategory); }
   if (openOnly) locParams.append('open_only', 'true');
@@ -800,12 +826,11 @@ async function doSearch() {
     document.getElementById('info-note').textContent =
       locs.length >= limitVal ? 'Try zooming in or filtering for more specific results' : '';
 
-    // Fly to state or reset
-    if (state && STATE_VIEWS[state]) {
-      const v = STATE_VIEWS[state];
-      map.flyTo(v.c, v.z, { duration: 1.2 });
-    } else if (!state) {
-      map.flyTo([-27, 133], 5, { duration: 1 });
+    // Fly to bounds dynamically or reset
+    if (clusters.getBounds().isValid()) {
+      map.flyToBounds(clusters.getBounds(), { padding: [40, 40], duration: 1.2, maxZoom: 12 });
+    } else {
+      map.flyTo([20, 0], 2, { duration: 1 });
     }
 
   } catch (err) {
@@ -945,7 +970,7 @@ document.addEventListener('keydown', e => {
 initMap();
 renderChips();
 renderLegend();
-loadStates();
+loadCountries();
 </script>
 </body>
 </html>
