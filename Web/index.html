@@ -160,6 +160,13 @@
     }
     input[type="number"]:focus { border-color: var(--accent); }
 
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+      margin-top: 6px;
+    }
+
     .input-hint {
       font-size: 10px;
       color: var(--text3);
@@ -545,6 +552,23 @@
         </div>
 
         <div class="toggle-row">
+          <span class="toggle-label-text">Show area of selection</span>
+          <label class="switch">
+            <input type="checkbox" id="show-circle">
+            <div class="sw-track"></div>
+            <div class="sw-thumb"></div>
+          </label>
+        </div>
+
+        <div class="field">
+          <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <label>Search Area Size</label>
+            <span id="radius-val" style="font-size:12px;color:var(--text2);font-weight:600;">100%</span>
+          </div>
+          <input type="range" id="radius-slider" min="1" max="100" value="100" autocomplete="off">
+        </div>
+
+        <div class="toggle-row">
           <span class="toggle-label-text">Active businesses only</span>
           <label class="switch">
             <input type="checkbox" id="open-only">
@@ -653,7 +677,7 @@ const STATE_VIEWS = {
 // ────────────────────────────────────────────────────────────
 // STATE
 // ────────────────────────────────────────────────────────────
-let map, clusters;
+let map, clusters, searchCircle;
 let selectedCategory = '';
 
 // ────────────────────────────────────────────────────────────
@@ -677,6 +701,34 @@ function initMap() {
     iconCreateFunction: buildClusterIcon,
   });
   map.addLayer(clusters);
+
+  // Add targeting circle
+  searchCircle = L.circle(map.getCenter(), {
+    radius: 1000,
+    color: 'var(--accent)',
+    weight: 2,
+    fillColor: 'var(--accent)',
+    opacity: 0,
+    fillOpacity: 0,
+    dashArray: '6, 6',
+    interactive: false
+  }).addTo(map);
+
+  map.on('move', updateCircle);
+  map.on('zoom', updateCircle);
+  setTimeout(updateCircle, 100);
+}
+
+function updateCircle() {
+  if (!map || !searchCircle) return;
+  const center = map.getCenter();
+  searchCircle.setLatLng(center);
+  const bounds = map.getBounds();
+  if (bounds && center) {
+    const distToEdge = center.distanceTo([center.lat, bounds.getEast()]);
+    const pct = parseInt(document.getElementById('radius-slider').value, 10) || 100;
+    searchCircle.setRadius(distToEdge * (pct / 100));
+  }
 }
 
 function buildClusterIcon(cluster) {
@@ -768,14 +820,16 @@ async function doSearch() {
   if (selectedCategory) { locParams.append('category', selectedCategory); subParams.append('category', selectedCategory); }
   if (openOnly) locParams.append('open_only', 'true');
 
-  // Include viewport bbox when zoomed in enough
-  if (map.getZoom() >= 9) {
-    const b = map.getBounds();
-    locParams.append('min_lat', b.getSouth());
-    locParams.append('max_lat', b.getNorth());
-    locParams.append('min_lng', b.getWest());
-    locParams.append('max_lng', b.getEast());
-  }
+  // Always search within the circle's bounding box
+  const b = searchCircle.getBounds();
+  const minLat = b.getSouth(), maxLat = b.getNorth();
+  const minLng = b.getWest(), maxLng = b.getEast();
+
+  locParams.append('min_lat', minLat); locParams.append('max_lat', maxLat);
+  locParams.append('min_lng', minLng); locParams.append('max_lng', maxLng);
+
+  subParams.append('min_lat', minLat); subParams.append('max_lat', maxLat);
+  subParams.append('min_lng', minLng); subParams.append('max_lng', maxLng);
 
   try {
     setLoading(true, 'Loading businesses...');
@@ -789,24 +843,24 @@ async function doSearch() {
     const locs = await locRes.json();
     const subs = await subRes.json();
 
-    renderMarkers(locs);
+    // Exact circle filtering
+    const center = searchCircle.getLatLng();
+    const radius = searchCircle.getRadius();
+    const filteredLocs = locs.filter(loc => {
+      if (!loc.lat || !loc.lng) return false;
+      return center.distanceTo(L.latLng(loc.lat, loc.lng)) <= radius;
+    });
+
+    renderMarkers(filteredLocs);
     renderSuburbs(subs);
 
     const infoEl = document.getElementById('result-info');
-    infoEl.textContent = `Showing ${locs.length.toLocaleString()} businesses`;
+    infoEl.textContent = `Showing ${filteredLocs.length.toLocaleString()} businesses`;
 
     document.getElementById('map-info').style.display = 'block';
-    document.getElementById('info-count').textContent = locs.length.toLocaleString();
+    document.getElementById('info-count').textContent = filteredLocs.length.toLocaleString();
     document.getElementById('info-note').textContent =
       locs.length >= limitVal ? 'Try zooming in or filtering for more specific results' : '';
-
-    // Fly to state or reset
-    if (state && STATE_VIEWS[state]) {
-      const v = STATE_VIEWS[state];
-      map.flyTo(v.c, v.z, { duration: 1.2 });
-    } else if (!state) {
-      map.flyTo([-27, 133], 5, { duration: 1 });
-    }
 
   } catch (err) {
     console.error(err);
@@ -939,9 +993,25 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter') doSearch();
 });
 
+// Update circle radius on slider change
+document.getElementById('radius-slider').addEventListener('input', e => {
+  document.getElementById('radius-val').textContent = e.target.value + '%';
+  updateCircle();
+});
+
+// Toggle circle visibility
+document.getElementById('show-circle').addEventListener('change', e => {
+  const show = e.target.checked;
+  // Keeps the circle logically active for the search, but visually hides it
+  searchCircle.setStyle({ opacity: show ? 1 : 0, fillOpacity: show ? 0.05 : 0 });
+});
+
 // ────────────────────────────────────────────────────────────
 // BOOT
 // ────────────────────────────────────────────────────────────
+document.getElementById('radius-slider').value = 100;
+document.getElementById('radius-val').textContent = '100%';
+document.getElementById('show-circle').checked = false;
 initMap();
 renderChips();
 renderLegend();

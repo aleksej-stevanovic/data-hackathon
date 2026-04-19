@@ -37,15 +37,17 @@ def index():
 
 @app.route('/api/states')
 def states():
+    valid_list = list(VALID_STATES)
+    placeholders = ', '.join(['?'] * len(valid_list))
     rows = run_query(f"""
-        SELECT region, COUNT(*) AS cnt
+        SELECT UPPER(region) AS reg, COUNT(*) AS cnt
         FROM '{PARQUET}'
-        WHERE region IS NOT NULL
+        WHERE UPPER(region) IN ({placeholders})
           AND latitude IS NOT NULL
           AND longitude IS NOT NULL
-        GROUP BY region
+        GROUP BY UPPER(region)
         ORDER BY cnt DESC
-    """)
+    """, valid_list)
     return jsonify([{'state': r[0], 'count': r[1]} for r in rows])
 
 
@@ -112,6 +114,11 @@ def suburb_stats():
     state = request.args.get('state', '').strip().upper()
     category = request.args.get('category', '').strip()
 
+    min_lat = request.args.get('min_lat', type=float)
+    max_lat = request.args.get('max_lat', type=float)
+    min_lng = request.args.get('min_lng', type=float)
+    max_lng = request.args.get('max_lng', type=float)
+
     if state and state not in VALID_STATES:
         return jsonify({'error': 'Invalid state'}), 400
     if category and not SAFE_PATTERN.match(category):
@@ -125,6 +132,14 @@ def suburb_stats():
     if category:
         conds.append("array_to_string(fsq_category_labels, '|') ILIKE ?")
         params.append(f'%{category}%')
+    if min_lat is not None:
+        conds.append('latitude >= ?'); params.append(min_lat)
+    if max_lat is not None:
+        conds.append('latitude <= ?'); params.append(max_lat)
+    if min_lng is not None:
+        conds.append('longitude >= ?'); params.append(min_lng)
+    if max_lng is not None:
+        conds.append('longitude <= ?'); params.append(max_lng)
 
     where = ' AND '.join(conds)
 
