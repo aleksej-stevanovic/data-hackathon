@@ -140,6 +140,33 @@
       letter-spacing: 0.5px;
     }
 
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      background: var(--bg2);
+      color: var(--text1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 9px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      -moz-appearance: textfield;
+    }
+    input[type="number"]:focus { border-color: var(--accent); }
+
+    .input-hint {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 6px;
+      line-height: 1.3;
+    }
+
     select {
       width: 100%;
       background: var(--bg2);
@@ -526,6 +553,12 @@
           </label>
         </div>
 
+        <div class="field">
+          <label>Max Results Limit</label>
+          <input type="number" id="limit-input" value="{{ default_limit }}" min="1" max="{{ max_limit }}">
+          <div class="input-hint">Default is {{ default_limit }}. Increasing this may cause map lag.</div>
+        </div>
+
         <button class="btn-primary" id="search-btn" onclick="doSearch()">
           Search Locations
         </button>
@@ -728,7 +761,8 @@ async function doSearch() {
   setLoading(true, 'Fetching locations...');
   document.getElementById('result-info').textContent = '';
 
-  const locParams = new URLSearchParams({ limit: 800 });
+  const limitVal = parseInt(document.getElementById('limit-input').value, 10) || {{ default_limit }};
+  const locParams = new URLSearchParams({ limit: limitVal });
   const subParams = new URLSearchParams();
   if (state) { locParams.append('state', state); subParams.append('state', state); }
   if (selectedCategory) { locParams.append('category', selectedCategory); subParams.append('category', selectedCategory); }
@@ -764,7 +798,7 @@ async function doSearch() {
     document.getElementById('map-info').style.display = 'block';
     document.getElementById('info-count').textContent = locs.length.toLocaleString();
     document.getElementById('info-note').textContent =
-      locs.length === 800 ? 'Try zooming in or filtering for more specific results' : '';
+      locs.length >= limitVal ? 'Try zooming in or filtering for more specific results' : '';
 
     // Fly to state or reset
     if (state && STATE_VIEWS[state]) {
